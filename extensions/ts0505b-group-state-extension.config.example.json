@@ -1,0 +1,8 @@
+{
+  "targetGroups": [
+    {
+      "name": "Example light group",
+      "objectId": "example_light_group"
+    }
+  ]
+}
