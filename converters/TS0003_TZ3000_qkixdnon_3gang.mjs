@@ -286,7 +286,7 @@ const tzBseedInching = {
             let channel = 1;
             channel <= 3;
             channel++
-          ) {
+        ) {
             const controlKey =
                 `inching_control_${channel}`;
 
@@ -333,7 +333,7 @@ const tzBseedInching = {
                     config[controlKey] === "ENABLE",
                     config[timeKey],
                 ),
-             );
+            );
         }
 
         const encoded =
