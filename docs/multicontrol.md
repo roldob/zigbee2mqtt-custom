@@ -67,7 +67,7 @@ The extension uses Zigbee2MQTT's configured MQTT base topic and Home Assistant d
 
 Home Assistant must have MQTT discovery enabled on the same broker and discovery prefix. Each pair publishes a non-optimistic switch whose unique ID is `virtual.id`, display name is `virtual.name`, device identifier is `virtual.deviceId`, and device display name is `virtual.deviceName`. Generic metadata uses manufacturer `Custom Zigbee2MQTT extension`, model `Virtual MultiControl`, and icon `mdi:light-switch`. Renaming IDs can leave old retained discovery entries requiring manual cleanup; automatic discovery cleanup is not added.
 
-All virtual state publishions use the selected pair's derived state topic. Zigbee2MQTT's publish API prepends its base topic, so the implementation passes the derived topic's relative part with an explicit base topic to avoid duplicating the prefix. See the [upstream MQTT implementation](https://github.com/Koenkk/zigbee2mqtt/blob/master/lib/mqtt.ts).
+All virtual state publications use the selected pair's derived state topic. Zigbee2MQTT's publish API prepends its base topic, so the implementation passes the derived topic's relative part with an explicit base topic to avoid duplicating the prefix. See the [upstream MQTT implementation](https://github.com/Koenkk/zigbee2mqtt/blob/master/lib/mqtt.ts).
 
 ## Changes and validation
 
