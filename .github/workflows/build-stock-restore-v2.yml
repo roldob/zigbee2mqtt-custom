@@ -12,11 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Clone upstream firmware
+      - name: Fetch upstream firmware
         run: |
-          git clone https://github.com/romasku/tuya-zigbee-switch.git upstream
-          cd upstream
-          git checkout ec57f81b89e7755c4a8833cc6cb081ba3cdda227
+          wget -q https://github.com/romasku/tuya-zigbee-switch/archive/ec57f81b89e7755c4a8833cc6cb081ba3cdda227.tar.gz -O upstream.tar.gz
+          mkdir upstream
+          tar -xzf upstream.tar.gz --strip-components=1 -C upstream
 
       - name: Install host dependencies
         run: |
