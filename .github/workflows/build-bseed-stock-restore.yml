@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - build/bseed-stock-restore-20260924
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
