@@ -353,6 +353,21 @@ int _attribute_ram_code_sec_ stock_restore_try(void) {
         return -1;
     }
 
+    /*
+     * Destructive phase starts below.
+     *
+     * The normal application runs with a 1 s hardware watchdog and active
+     * interrupts.  During restore we erase the flash slot that contains the
+     * currently executing firmware, therefore from this point onward only
+     * RAM-resident code may execute.
+     *
+     * Extend and kick the watchdog while the loader flash is still intact,
+     * then disable interrupts before any sector erase.
+     */
+    drv_wd_setInterval(60000);
+    drv_wd_clear();
+    irq_disable();
+
     if (restore_payload(slot, data_off) != 0) {
         SYSTEM_RESET();
     }
