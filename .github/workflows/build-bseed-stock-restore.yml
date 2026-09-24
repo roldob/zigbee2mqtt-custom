@@ -30,6 +30,7 @@ jobs:
         run: |
           base64 -d restore-build/stock_restore.c.b64 > upstream/src/telink/stock_restore.c
           base64 -d restore-build/stock_restore.h.b64 > upstream/src/telink/stock_restore.h
+          sed -i '/#include "tl_common.h"/a #include "zcl_include.h"' upstream/src/telink/stock_restore.c
           python3 - <<'PY'
           from pathlib import Path
 
