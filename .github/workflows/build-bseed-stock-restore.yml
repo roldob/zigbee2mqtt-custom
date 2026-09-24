@@ -1,0 +1,122 @@
+name: Build BSEED stock restore OTA
+
+on:
+  push:
+    branches:
+      - build/bseed-stock-restore-20260924
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout build inputs
+        uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make python3 python3-click yq unzip wget curl bzip2
+
+      - name: Checkout exact upstream source
+        run: |
+          git clone https://github.com/romasku/tuya-zigbee-switch.git upstream
+          cd upstream
+          git checkout 37f72be3501cc5f691f857dfa6dc6e52a7c39e51
+
+      - name: Inject restore loader
+        run: |
+          base64 -d restore-build/stock_restore.c.b64 > upstream/src/telink/stock_restore.c
+          base64 -d restore-build/stock_restore.h.b64 > upstream/src/telink/stock_restore.h
+          python3 - <<'PY'
+          from pathlib import Path
+
+          mf = Path("upstream/src/telink/Makefile")
+          s = mf.read_text()
+          needle = "\tota_reformating/ram_code_flash.c \\\n"
+          if needle not in s:
+              raise SystemExit("Makefile patch point not found")
+          s = s.replace(needle, needle + "\tstock_restore.c \\\n", 1)
+          mf.write_text(s)
+
+          z = Path("upstream/src/telink/hal/zigbee_ota.c")
+          s = z.read_text()
+          inc = '#include "version_cfg.h"'
+          if inc not in s:
+              raise SystemExit("zigbee_ota include patch point not found")
+          s = s.replace(inc, inc + '\n#include "stock_restore.h"', 1)
+
+          old = """        if (status == ZCL_STA_SUCCESS) {
+              ota_mcuReboot();
+          } else {"""
+          new = """        if (status == ZCL_STA_SUCCESS) {
+              if (!stock_restore_from_downloaded_image()) {
+                  ota_queryStart(OTA_PERIODIC_QUERY_INTERVAL);
+              }
+          } else {"""
+          if old not in s:
+              raise SystemExit("zigbee_ota callback patch point not found")
+          s = s.replace(old, new, 1)
+          z.write_text(s)
+          PY
+
+      - name: Install Telink SDK and TC32 toolchain
+        working-directory: upstream
+        run: make telink/tools/all
+
+      - name: Build restore loader for BSEED BSLR1 end device
+        working-directory: upstream
+        run: |
+          BOARD=SWITCH_BSEED_TOUCH_LATCHING_TS0011 DEVICE_TYPE=end_device make board/build-firmware
+          find bin/end_device/SWITCH_BSEED_TOUCH_LATCHING_TS0011_END_DEVICE -maxdepth 1 -type f -name '*.bin' -print
+
+      - name: Create FORCE OTA wrapper and validate
+        working-directory: upstream
+        run: |
+          BIN="$(find bin/end_device/SWITCH_BSEED_TOUCH_LATCHING_TS0011_END_DEVICE -maxdepth 1 -type f -name '*.bin' | head -1)"
+          test -n "$BIN"
+          mkdir -p ../artifact
+          cp "$BIN" ../artifact/bseed-aetquff4-stock-restore-loader.bin
+          python3 src/telink/make_ota.py create-ota \
+            --manufacturer-id 0x1141 \
+            --image-type 0xAA41 \
+            --file-version 0xFFFFFFFF \
+            "$BIN" ../artifact/bseed-aetquff4-stock-restore-loader.zigbee
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct, binascii, hashlib
+
+          p = Path("../artifact/bseed-aetquff4-stock-restore-loader.zigbee")
+          b = p.read_bytes()
+          hdr = struct.Struct("<I5HIH32sI")
+          vals = hdr.unpack_from(b, 0)
+          magic, hv, hlen, fc, mfg, itype, fver, stack, hstr, total = vals
+          assert magic == 0x0BEEF11E
+          assert hv == 0x0100 and hlen == 56 and fc == 0
+          assert mfg == 0x1141 and itype == 0xAA41 and fver == 0xFFFFFFFF
+          assert stack == 2 and total == len(b)
+          tag, n = struct.unpack_from("<HI", b, hlen)
+          assert tag == 0
+          raw = b[hlen + 6:hlen + 6 + n]
+          assert len(raw) == n
+          assert n < 0x40000
+          assert raw[6:8] == b"\\x5d\\x02"
+          assert int.from_bytes(raw[0x18:0x1c], "little") == n
+          stored = int.from_bytes(raw[-4:], "little")
+          calc = (binascii.crc32(raw[:-4]) ^ 0xFFFFFFFF) & 0xFFFFFFFF
+          assert stored == calc
+          print("OTA bytes:", len(b))
+          print("Telink payload bytes:", n)
+          print("SHA256:", hashlib.sha256(b).hexdigest())
+          print("SHA512:", hashlib.sha512(b).hexdigest())
+          PY
+
+          sha256sum ../artifact/*
+          sha512sum ../artifact/*
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bseed-stock-restore-ota
+          path: artifact/*
+          if-no-files-found: error
