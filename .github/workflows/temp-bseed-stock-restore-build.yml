@@ -9,5 +9,52 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Test
-        run: echo "workflow ok"
+      - name: Checkout build support
+        uses: actions/checkout@v4
+        with:
+          path: helper
+
+      - name: Checkout upstream firmware
+        uses: actions/checkout@v4
+        with:
+          repository: romasku/tuya-zigbee-switch
+          ref: 37f72be3501cc5f691f857dfa6dc6e52a7c39e51
+          path: fw
+
+      - name: Install host dependencies
+        run: |
+          python3 -m pip install --user click
+          sudo apt-get update
+          sudo apt-get install -y unzip curl wget
+
+      - name: Install Telink SDK and toolchain
+        working-directory: fw
+        run: make telink/tools/all
+
+      - name: Patch restore loader
+        run: |
+          cp helper/build_support/stock_restore.c fw/src/telink/
+          cp helper/build_support/stock_restore.h fw/src/telink/
+          python3 helper/build_support/patch_restore.py
+
+      - name: Build loader
+        working-directory: fw
+        run: |
+          make -C src/telink clean
+          make -C src/telink build             VERSION_STR=stock-restore-loader             FILE_VERSION=0x11033000             DEVICE_TYPE=end_device             'CONFIG_STR=aetquff4;BSLR1;LC3;SB4u;RC0B6;IC2;M;SLP;'             IMAGE_TYPE=43585             FIRMWARE_BASENAME=bseed_stock_restore_loader             -j2
+          make -C src/telink ota             FIRMWARE_BASENAME=bseed_stock_restore_loader             OTA_VERSION=0xFFFFFFFF             DEVICE_TYPE=end_device             'CONFIG_STR=aetquff4;BSLR1;LC3;SB4u;RC0B6;IC2;M;SLP;'             IMAGE_TYPE=43585             OTA_IMAGE_TYPE=43585             OTA_MANUFACTURER_ID=4417             OTA_FILE=../../bseed-aetquff4-stock-restore-loader.zigbee
+
+      - name: Sanity check
+        working-directory: fw
+        run: |
+          ls -l bseed-aetquff4-stock-restore-loader.zigbee build/telink/bin/bseed_stock_restore_loader.bin
+          sha256sum bseed-aetquff4-stock-restore-loader.zigbee build/telink/bin/bseed_stock_restore_loader.bin
+          python3 -c "from pathlib import Path; import struct; p=Path('bseed-aetquff4-stock-restore-loader.zigbee').read_bytes(); x=struct.unpack_from('<I5HIH',p,0); assert x[0]==0x0BEEF11E and x[4]==0x1141 and x[5]==0xAA41 and x[6]==0xFFFFFFFF; print('OTA header OK', len(p))"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bseed-stock-restore-loader
+          path: |
+            fw/bseed-aetquff4-stock-restore-loader.zigbee
+            fw/build/telink/bin/bseed_stock_restore_loader.bin
