@@ -48,14 +48,10 @@ jobs:
               raise SystemExit("zigbee_ota include patch point not found")
           s = s.replace(inc, inc + '\n#include "stock_restore.h"', 1)
 
-          old = """        if (status == ZCL_STA_SUCCESS) {
-              ota_mcuReboot();
-          } else {"""
-          new = """        if (status == ZCL_STA_SUCCESS) {
-              if (!stock_restore_from_downloaded_image()) {
+          old = "            ota_mcuReboot();"
+          new = """            if (!stock_restore_from_downloaded_image()) {
                   ota_queryStart(OTA_PERIODIC_QUERY_INTERVAL);
-              }
-          } else {"""
+              }"""
           if old not in s:
               raise SystemExit("zigbee_ota callback patch point not found")
           s = s.replace(old, new, 1)
