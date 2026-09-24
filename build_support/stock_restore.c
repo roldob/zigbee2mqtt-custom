@@ -180,6 +180,13 @@ bool stock_restore_from_downloaded_image(void) {
     else
         return false;
 
+    /* Normal custom-firmware OTAs must remain fully usable as a rollback path.
+     * Only intercept images carrying our private BSEED stock-restore marker.
+     * Anything else is left untouched and the caller performs the normal
+     * ota_mcuReboot() flow. */
+    if (!marker_ok(src))
+        return false;
+
     if (!ota_newImageValid(src)) {
         invalidate_image(src);
         return false;
@@ -191,7 +198,7 @@ bool stock_restore_from_downloaded_image(void) {
     ram_code_flash_read_page(src + 0x38u, 4, (u8 *)&app_crc_meta);
     ram_code_flash_read_page(src + 0x3Cu, 4, (u8 *)&version);
 
-    if (size != TRANSPORT_TOTAL_SIZE || !marker_ok(src) ||
+    if (size != TRANSPORT_TOTAL_SIZE ||
         boot_size != STOCK_BOOT_SIZE || app_size != STOCK_APP_SIZE ||
         app_crc_meta != STOCK_APP_CRC || version != TRANSPORT_VERSION) {
         invalidate_image(src);
