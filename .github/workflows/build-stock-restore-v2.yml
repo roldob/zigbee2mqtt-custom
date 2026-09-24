@@ -1,0 +1,87 @@
+name: Build stock restore v2
+
+on:
+  push:
+    branches:
+      - stock-restore-v2-build
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone upstream firmware
+        run: |
+          git clone https://github.com/romasku/tuya-zigbee-switch.git upstream
+          cd upstream
+          git checkout ec57f81b89e7755c4a8833cc6cb081ba3cdda227
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make python3 python3-pip wget unzip git
+
+      - name: Install Telink toolchain and SDK
+        working-directory: upstream
+        run: make telink/tools/all
+
+      - name: Patch restore loader
+        run: |
+          cp restore-v2/stock_restore.c upstream/src/telink/hal/stock_restore.c
+          cp restore-v2/stock_restore.h upstream/src/telink/hal/stock_restore.h
+          cp restore-v2/zigbee_ota.c upstream/src/telink/hal/zigbee_ota.c
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("upstream/src/telink/Makefile")
+          s = p.read_text()
+          needle = "hal/zigbee_ota.c \\\n"
+          if needle not in s:
+              raise SystemExit("Makefile insertion point not found")
+          s = s.replace(needle, needle + "\thal/stock_restore.c \\\n", 1)
+          p.write_text(s)
+          PY
+
+      - name: Build loader v2
+        working-directory: upstream/src/telink
+        run: |
+          make clean
+          make ota -j2 \
+            DEVICE_TYPE=end_device \
+            VERSION_STR=stock-loader-v2 \
+            FILE_VERSION=0x11033001 \
+            CONFIG_STR="aetquff4;BSLR1;LC3;SB4u;RC0B6;IC2;M;SLP;" \
+            IMAGE_TYPE=43585 \
+            OTA_MANUFACTURER_ID=4417 \
+            OTA_IMAGE_TYPE=43585 \
+            OTA_VERSION=0xFFFFFFFE \
+            FIRMWARE_BASENAME=bseed_stock_loader_v2
+
+      - name: Validate loader
+        run: |
+          mkdir -p out
+          cp upstream/build/telink/bin/bseed_stock_loader_v2.ota out/bseed-aetquff4-stock-restore-loader-v2.zigbee
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, struct
+          p = Path("out/bseed-aetquff4-stock-restore-loader-v2.zigbee")
+          b = p.read_bytes()
+          if len(b) >= 212992:
+              raise SystemExit(f"Loader too large: {len(b)}")
+          magic, hv, hl, fc, man, typ, fv, stack = struct.unpack_from("<IHHHHHIH", b, 0)
+          assert magic == 0x0BEEF11E
+          assert man == 4417
+          assert typ == 43585
+          assert fv == 0xFFFFFFFE
+          assert b"stock-loader-v2" in b
+          print("loader_size", len(b))
+          print("loader_sha256", hashlib.sha256(b).hexdigest())
+          PY
+          sha256sum out/bseed-aetquff4-stock-restore-loader-v2.zigbee > out/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bseed-stock-restore-loader-v2
+          path: out/
+          if-no-files-found: error
