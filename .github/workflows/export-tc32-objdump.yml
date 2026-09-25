@@ -16,9 +16,9 @@ jobs:
           wget -q https://github.com/romasku/tuya-zigbee-switch/archive/ec57f81b89e7755c4a8833cc6cb081ba3cdda227.tar.gz -O upstream.tar.gz
           mkdir upstream
           tar -xzf upstream.tar.gz --strip-components=1 -C upstream
-      - name: Install TC32 toolchain
+      - name: Install exact SDK and TC32 toolchain
         working-directory: upstream/src/telink
-        run: make -f tools.mk toolchain
+        run: make -f tools.mk sdk toolchain
       - name: Show exact SDK OTA flash map
         run: |
           echo "=== drv_nv_cfg.h relevant lines ==="
