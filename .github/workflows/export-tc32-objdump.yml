@@ -1,0 +1,30 @@
+name: Export TC32 objdump
+
+on:
+  push:
+    branches:
+      - stock-restore-v2-build
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch upstream build files
+        run: |
+          wget -q https://github.com/romasku/tuya-zigbee-switch/archive/ec57f81b89e7755c4a8833cc6cb081ba3cdda227.tar.gz -O upstream.tar.gz
+          mkdir upstream
+          tar -xzf upstream.tar.gz --strip-components=1 -C upstream
+      - name: Install TC32 toolchain
+        working-directory: upstream/src/telink
+        run: make -f tools.mk toolchain
+      - name: Collect objdump
+        run: |
+          mkdir -p out
+          cp upstream/telink_tools/toolchain/tc32/bin/tc32-elf-objdump out/
+          chmod +x out/tc32-elf-objdump
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tc32-objdump
+          path: out/tc32-elf-objdump
