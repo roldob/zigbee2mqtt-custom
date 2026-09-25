@@ -49,23 +49,23 @@ jobs:
           make clean
           make ota -j2 \
             DEVICE_TYPE=end_device \
-            VERSION_STR=stock-loader-v3 \
-            FILE_VERSION=0x11033002 \
+            VERSION_STR=stock-loader-v4 \
+            FILE_VERSION=0x11033003 \
             CONFIG_STR="aetquff4;BSLR1;LC3;SB4u;RC0B6;IC2;M;SLP;" \
             IMAGE_TYPE=43585 \
             OTA_MANUFACTURER_ID=4417 \
             OTA_IMAGE_TYPE=43585 \
             OTA_VERSION=0xFFFFFFFE \
-            FIRMWARE_BASENAME=bseed_stock_loader_v3
+            FIRMWARE_BASENAME=bseed_stock_loader_v4
 
       - name: Validate loader
         run: |
           mkdir -p out
-          cp upstream/build/telink/bin/bseed_stock_loader_v3.ota out/bseed-aetquff4-stock-restore-loader-v3.zigbee
+          cp upstream/build/telink/bin/bseed_stock_loader_v4.ota out/bseed-aetquff4-stock-restore-loader-v4.zigbee
           python3 - <<'PY'
           from pathlib import Path
           import hashlib, struct
-          p = Path("out/bseed-aetquff4-stock-restore-loader-v3.zigbee")
+          p = Path("out/bseed-aetquff4-stock-restore-loader-v4.zigbee")
           b = p.read_bytes()
           if len(b) >= 212992:
               raise SystemExit(f"Loader too large: {len(b)}")
@@ -74,14 +74,14 @@ jobs:
           assert man == 4417
           assert typ == 43585
           assert fv == 0xFFFFFFFE
-          assert b"stock-loader-v3" in b
+          assert b"stock-loader-v4" in b
           print("loader_size", len(b))
           print("loader_sha256", hashlib.sha256(b).hexdigest())
           PY
-          sha256sum out/bseed-aetquff4-stock-restore-loader-v3.zigbee > out/SHA256SUMS.txt
+          sha256sum out/bseed-aetquff4-stock-restore-loader-v4.zigbee > out/SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bseed-stock-restore-loader-v3
+          name: bseed-stock-restore-loader-v4
           path: out/
           if-no-files-found: error
