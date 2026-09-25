@@ -23,6 +23,8 @@ jobs:
         run: |
           echo "=== drv_nv_cfg.h relevant lines ==="
           grep -n -E "FLASH_ADDR_OF_OTA_IMAGE|FLASH_OTA_IMAGE_MAX_SIZE|NV_BASE_ADDRESS|MAC_BASE_ADD|FACTORY_CFG_BASE_ADD|0x76000|0x77000" upstream/telink_tools/sdk/proj/drivers/drv_nv_cfg.h || true
+          echo "=== flash-cap definitions ==="
+          grep -R -n -E "FLASH_CAP_SIZE_1M|FLASH_CAP_SIZE_512K|FLASH_CAP_SIZE_2M|FLASH_CAP_SIZE_4M" upstream/telink_tools/sdk/platform upstream/telink_tools/sdk/proj upstream/telink_tools/sdk/zigbee | head -100 || true
           echo "=== end ==="
 
       - name: Collect objdump
