@@ -19,6 +19,12 @@ jobs:
       - name: Install TC32 toolchain
         working-directory: upstream/src/telink
         run: make -f tools.mk toolchain
+      - name: Show exact SDK OTA flash map
+        run: |
+          echo "=== drv_nv_cfg.h relevant lines ==="
+          grep -n -E "FLASH_ADDR_OF_OTA_IMAGE|FLASH_OTA_IMAGE_MAX_SIZE|NV_BASE_ADDRESS|MAC_BASE_ADD|FACTORY_CFG_BASE_ADD|0x76000|0x77000" upstream/telink_tools/sdk/proj/drivers/drv_nv_cfg.h || true
+          echo "=== end ==="
+
       - name: Collect objdump
         run: |
           mkdir -p out
