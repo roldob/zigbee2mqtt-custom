@@ -1,0 +1,95 @@
+name: Build UART SWire stock restore tool
+
+on:
+  push:
+    branches:
+      - swire-stock-restore-tool
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi mingw-w64 make python3 wget
+
+      - name: Fetch pinned upstream programmer
+        run: |
+          wget -q https://github.com/MostEmpire/telink-opensource-debugger/archive/7fad817605a2e98ca5e21f6b55994faa49d7a308.tar.gz -O upstream.tar.gz
+          mkdir upstream
+          tar -xzf upstream.tar.gz --strip-components=1 -C upstream
+
+      - name: Apply UART + PB12 reset patch
+        run: python3 swire-stock-restore/patch_upstream.py
+
+      - name: Test SWire codec
+        working-directory: upstream/blue-pill-firmware
+        run: make test
+
+      - name: Build Blue Pill UART bridge
+        working-directory: upstream/blue-pill-firmware
+        run: make -j2
+
+      - name: Build Windows programmer CLI
+        working-directory: upstream/programmer-app-cli
+        run: |
+          make -j2 \
+            CC=x86_64-w64-mingw32-gcc \
+            WINDRES=x86_64-w64-mingw32-windres
+
+      - name: Assemble and validate
+        run: |
+          mkdir -p out
+          cp upstream/bin/blue-pill-firmware.hex out/blue-pill-telink-uart-reset-flash.hex
+          cp upstream/bin/blue-pill-firmware.bin out/blue-pill-telink-uart-reset-flash.bin
+          cp upstream/bin/programmer_cli.exe out/programmer_cli.exe
+
+          test -s out/blue-pill-telink-uart-reset-flash.hex
+          test -s out/blue-pill-telink-uart-reset-flash.bin
+          test -s out/programmer_cli.exe
+
+          strings out/programmer_cli.exe | grep -- "--flash"
+          strings out/programmer_cli.exe | grep -- "--verify"
+          strings out/programmer_cli.exe | grep -- "--erase"
+
+          cat > out/FLASH-STOCK.txt <<'EOF'
+          BSEED TLSR8258 stock restore using the proven UART/PB12-reset wiring
+
+          Bridge:
+            USART1 115200 8N1
+            PA9  = UART TX
+            PA10 = UART RX
+            PA6  = SWire sense
+            PA7  = SWire drive through 750 ohm to SWS
+            PB12 = target RST, active low
+            Target power = external regulated 3.3 V
+            PB0 not connected
+
+          Verify connection:
+            programmer_cli.exe -p COM5 --cfg
+            programmer_cli.exe -p COM5 --selftest
+            programmer_cli.exe -p COM5 --pintest
+            programmer_cli.exe -p COM5 --info
+
+          Make a fresh full backup:
+            programmer_cli.exe -p COM5 --dump -f before-stock-restore.bin
+
+          Program the padded stock image at address 0:
+            programmer_cli.exe -p COM5 --flash -a 0x000000 -f bseed-aetquff4-stock-restore-0x00000-0x41fff.bin
+
+          The --flash action performs sector erase + page program + read-back verify.
+          Do NOT use --no-erase or --no-verify.
+          EOF
+
+          sha256sum out/* > out/SHA256SUMS.txt
+          cat out/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bseed-uart-swire-stock-restore-tool
+          path: out/
+          if-no-files-found: error
