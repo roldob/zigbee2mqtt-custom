@@ -7,6 +7,7 @@
 #pragma pack(pop)
 
 #define SLOT0_ADDR              0x00000u
+#define SMALL_OTA_ADDR          0x20000u
 #define SLOT1_ADDR              0x40000u
 #define TELINK_FLAG_OFFSET      0x00008u
 #define TELINK_SIZE_OFFSET      0x00018u
@@ -141,6 +142,13 @@ static int _attribute_ram_code_sec_ read_marker(unsigned int slot) {
 }
 
 static unsigned int _attribute_ram_code_sec_ find_restore_slot(void) {
+    /*
+     * Telink's SDK can receive the new image into the temporary small-OTA
+     * slot at 0x20000 before the normal boot-time reformatter moves it to the
+     * big alternate slot.  OTA_EVT_COMPLETE runs before that reformatter, so
+     * the restore container must be detected here as well.
+     */
+    if (read_marker(SMALL_OTA_ADDR)) return SMALL_OTA_ADDR;
     if (read_marker(SLOT0_ADDR)) return SLOT0_ADDR;
     if (read_marker(SLOT1_ADDR)) return SLOT1_ADDR;
     return 0xffffffffu;
