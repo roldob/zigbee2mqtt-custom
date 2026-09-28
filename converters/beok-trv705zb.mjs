@@ -1,7 +1,11 @@
 // BEOK TRV-705ZB / TS0601 / _TZE284_ltwbm23f
 // Zigbee2MQTT external converter
 //
-// v10: single deterministic Tuya data path.
+// v11: supports both observed BEOK TRV-705ZB firmware/capability variants.
+// The enhanced variant has the same TS0601/_TZE284_ltwbm23f fingerprint and
+// appVersion as the original, so it is detected dynamically from startup
+// Tuya capability datapoints (DP125, DP112, DP35). Enhanced exposes are only
+// shown after the device actually reports those datapoints.
 // Switch hysteresis SET is sent atomically with DP127=1 (ON-OFF), because
 // the sniffed successful DP115 writes all occurred while regulation mode
 // was ON-OFF.
@@ -33,6 +37,39 @@ const ea = exposes.access;
 
 const vacationDaysCache = new Map();
 const boostDurationCache = new Map();
+
+const META_ENHANCED = 'beokTrv705Enhanced';
+const META_THRUST = 'beokTrv705HasThrust';
+const META_DP126 = 'beokTrv705Dp126';
+
+const markCapability = (device, meta, key, value = true) => {
+    if (!device || device.meta?.[key] === value) return;
+    device.meta ??= {};
+    device.meta[key] = value;
+    device.save();
+    meta?.deviceExposesChanged?.();
+};
+
+const storeDeviceMeta = (device, key, value) => {
+    if (!device || device.meta?.[key] === value) return;
+    device.meta ??= {};
+    device.meta[key] = value;
+    device.save();
+};
+
+const enhancedDp126Base = (device) => {
+    let raw = Number(device?.meta?.[META_DP126] ?? 7);
+    // 69 (0x45) is the separate Vacation command, not the enhanced settings bitmap.
+    if (!Number.isFinite(raw) || raw === 69) raw = 7;
+    // 0x0200 was only observed as an intermediate Protection Options value.
+    // 0x2000 is the transient valve calibration-running bit.
+    return raw & ~0x2200;
+};
+
+const writeEnhancedDp126 = async (entity, meta, raw) => {
+    await tuya.sendDataPointValue(entity, 126, raw);
+    storeDeviceMeta(meta?.device, META_DP126, raw);
+};
 
 const cacheKey = (entity, meta) =>
     meta?.device?.ieeeAddr ??
@@ -101,6 +138,9 @@ const brightnessTo = {high: 0, medium: 1, low: 2};
 const orientationFrom = {0: 'up', 1: 'down'};
 const orientationTo = {up: 0, down: 1};
 
+const thrustFrom = {0: 'turbo', 1: 'normal', 2: 'auto'};
+const thrustTo = {turbo: 0, normal: 1, auto: 2};
+
 const scheduleDpToDay = {
     102: 1,
     103: 2,
@@ -123,6 +163,16 @@ const scheduleKeyToDp = {
 
 const scheduleConverter = (day) =>
     tuya.valueConverter.thermostatScheduleDayMultiDP_TRV602Z_WithDayNumber(day);
+
+const defaultSchedulePayload = (day) => Buffer.from([
+    day,
+    0xc1, 0x68, 0x30, 0xc8,
+    0xc1, 0xe0, 0x20, 0x96,
+    0xc2, 0xd0, 0x30, 0xc8,
+    0xc3, 0x48, 0x20, 0x96,
+    0xc4, 0x38, 0x30, 0xc8,
+    0xc5, 0x28, 0x20, 0x96,
+]);
 
 const derivePreset = (mode, setpoint, state) => {
     if (mode === undefined || mode === null) return undefined;
@@ -212,6 +262,14 @@ const fzBeok = {
                     result.window = Number(value) === 1 ? 'OPEN' : 'CLOSE';
                     break;
 
+                case 35:
+                case 112:
+                case 125:
+                    // Enhanced TRV-705ZB capability markers. They are reported at startup
+                    // by the second observed variant but not by the original one.
+                    markCapability(meta.device, meta, META_ENHANCED, true);
+                    break;
+
                 case 47:
                     // datatype 2 is already decoded as signed int32 above.
                     result.local_temperature_calibration = Number(value) / 10;
@@ -231,6 +289,11 @@ const fzBeok = {
                     }
                     break;
                 }
+
+                case 110:
+                    markCapability(meta.device, meta, META_THRUST, true);
+                    result.thrust_mode = thrustFrom[Number(value)];
+                    break;
 
                 case 111:
                     result.display_brightness = brightnessFrom[Number(value)];
@@ -288,6 +351,39 @@ const fzBeok = {
                 case 122:
                     result.frost_protection = value ? 'ON' : 'OFF';
                     break;
+
+                case 126: {
+                    const raw = Number(value);
+
+                    // DP126=69 (0x45) is the Vacation start companion command and
+                    // exists on the original variant too. Never interpret it as the
+                    // enhanced settings bitmap.
+                    if (raw === 69 || !meta.device?.meta?.[META_ENHANCED]) break;
+
+                    const previousRaw = Number(meta.device?.meta?.[META_DP126] ?? 7);
+                    storeDeviceMeta(meta.device, META_DP126, raw);
+
+                    result.temporary_mode = (raw & 0x1000) !== 0 ? 'disabled' : 'enabled';
+                    result.enhanced_child_lock = (raw & 0x4000) !== 0 ? 'ON' : 'OFF';
+
+                    // 0x0200 was observed as a transient/intermediate Protection Options
+                    // value. Only publish the two stable low-battery actions.
+                    if ((raw & 0x0200) === 0) {
+                        result.critical_low_battery_action =
+                            (raw & 0x0400) !== 0 ? 'open_valve_30' : 'close_valve';
+                    }
+
+                    const wasCalibrating = (previousRaw & 0x2000) !== 0;
+                    const isCalibrating = (raw & 0x2000) !== 0;
+                    if (isCalibrating) {
+                        result.valve_calibration = 'running';
+                    } else if (wasCalibrating) {
+                        result.valve_calibration = 'completed';
+                    } else {
+                        result.valve_calibration = 'idle';
+                    }
+                    break;
+                }
 
                 case 127:
                     result.system_mode = Number(value) === 0 ? 'pid' : 'on-off';
@@ -388,6 +484,11 @@ const tzBeok = {
         'vacation',
         'boost_duration',
         'boost',
+        'temporary_mode',
+        'critical_low_battery_action',
+        'enhanced_child_lock',
+        'thrust_mode',
+        'reset_all_settings',
     ],
 
     convertSet: async (entity, key, value, meta) => {
@@ -544,6 +645,114 @@ const tzBeok = {
                 const enabled = value === 'ON' || value === true;
                 await tuya.sendDataPointBool(entity, 122, enabled);
                 state.frost_protection = enabled ? 'ON' : 'OFF';
+                break;
+            }
+
+            case 'temporary_mode': {
+                if (!meta.device?.meta?.[META_ENHANCED]) {
+                    throw new Error('temporary_mode is not reported by this TRV variant');
+                }
+                if (!['enabled', 'disabled'].includes(value)) {
+                    throw new Error("temporary_mode must be 'enabled' or 'disabled'");
+                }
+
+                let raw = enhancedDp126Base(meta.device);
+                raw = value === 'disabled' ? (raw | 0x1000) : (raw & ~0x1000);
+                await writeEnhancedDp126(entity, meta, raw);
+                state.temporary_mode = value;
+                break;
+            }
+
+            case 'critical_low_battery_action': {
+                if (!meta.device?.meta?.[META_ENHANCED]) {
+                    throw new Error('critical_low_battery_action is not reported by this TRV variant');
+                }
+                if (!['close_valve', 'open_valve_30'].includes(value)) {
+                    throw new Error("critical_low_battery_action must be 'close_valve' or 'open_valve_30'");
+                }
+
+                let raw = enhancedDp126Base(meta.device) & ~0x0600;
+                if (value === 'open_valve_30') raw |= 0x0400;
+                await writeEnhancedDp126(entity, meta, raw);
+                state.critical_low_battery_action = value;
+                break;
+            }
+
+            case 'enhanced_child_lock': {
+                if (!meta.device?.meta?.[META_ENHANCED]) {
+                    throw new Error('enhanced_child_lock is not reported by this TRV variant');
+                }
+                const enabled = value === 'ON' || value === true;
+                let raw = enhancedDp126Base(meta.device);
+                raw = enabled ? (raw | 0x4000) : (raw & ~0x4000);
+                await writeEnhancedDp126(entity, meta, raw);
+                state.enhanced_child_lock = enabled ? 'ON' : 'OFF';
+                break;
+            }
+
+            case 'thrust_mode': {
+                if (!meta.device?.meta?.[META_THRUST]) {
+                    throw new Error('thrust_mode has not been reported by this TRV');
+                }
+                if (!(value in thrustTo)) throw new Error(`Invalid thrust_mode: ${value}`);
+
+                await tuya.sendDataPointEnum(entity, 110, thrustTo[value]);
+                state.thrust_mode = value;
+
+                // On the enhanced variant selecting Auto is immediately followed
+                // by DP126 bit 0x2000, which starts valve calibration.
+                if (value === 'auto' && meta.device?.meta?.[META_ENHANCED]) {
+                    const raw = enhancedDp126Base(meta.device) | 0x2000;
+                    await writeEnhancedDp126(entity, meta, raw);
+                    state.valve_calibration = 'running';
+                }
+                break;
+            }
+
+            case 'reset_all_settings': {
+                if (value !== 'RESET' && value !== 'reset') {
+                    throw new Error("reset_all_settings must be 'RESET'");
+                }
+
+                // Exact Reset All sequence observed in both supplied captures.
+                await tuya.sendDataPointEnum(entity, 127, 1);
+                await tuya.sendDataPointValue(entity, 9, 300);
+                await tuya.sendDataPointBool(entity, 14, false);
+                await tuya.sendDataPointValue(entity, 115, 5);
+                await tuya.sendDataPointValue(entity, 47, 0);
+                await tuya.sendDataPointBool(entity, 122, true);
+                await tuya.sendDataPointValue(entity, 119, 200);
+                await tuya.sendDataPointValue(entity, 120, 150);
+                await tuya.sendDataPointValue(entity, 121, 50);
+                await tuya.sendDataPointEnum(entity, 111, 0);
+                await tuya.sendDataPointEnum(entity, 113, 0);
+
+                if (meta.device?.meta?.[META_ENHANCED]) {
+                    await writeEnhancedDp126(entity, meta, 7);
+                    state.temporary_mode = 'enabled';
+                    state.critical_low_battery_action = 'close_valve';
+                    state.enhanced_child_lock = 'OFF';
+                    state.valve_calibration = 'idle';
+                }
+
+                for (let day = 1; day <= 7; day++) {
+                    await tuya.sendDataPointRaw(entity, 101 + day, defaultSchedulePayload(day));
+                }
+
+                await tuya.sendDataPointEnum(entity, 110, 2);
+
+                state.system_mode = 'on-off';
+                state.upper_temperature_limit = 30;
+                state.window_detection = 'OFF';
+                state.switch_hysteresis = 0.5;
+                state.local_temperature_calibration = 0;
+                state.frost_protection = 'ON';
+                state.comfort_temperature = 20;
+                state.eco_temperature = 15;
+                state.antifrost_temperature = 5;
+                state.display_brightness = 'high';
+                state.screen_orientation = 'up';
+                if (meta.device?.meta?.[META_THRUST]) state.thrust_mode = 'auto';
                 break;
             }
 
@@ -756,121 +965,36 @@ const definition = {
     configure: tuya.configureMagicPacket,
     onEvent: tuya.onEventSetLocalTime,
 
-    exposes: [
-        e.battery(),
-        e.child_lock(),
+    exposes: (device) => {
+        const list = [
+            e.battery(),
+            e.child_lock(),
 
-        e
-            .climate()
-            .withLocalTemperature(ea.STATE)
-            .withSetpoint('current_heating_setpoint', 5, 35, 0.5, ea.STATE_SET)
-            .withLocalTemperatureCalibration(-10, 10, 0.1, ea.STATE_SET)
-            .withPreset(
-                [
-                    'off',
-                    'antifrost',
-                    'eco',
-                    'comfort',
-                    'custom',
-                    'program',
-                    'full_open',
-                    'vacation',
-                    'boost',
-                ],
-                ea.STATE_SET,
-            )
-            .withRunningState(['idle', 'heat'], ea.STATE),
+            e
+                .climate()
+                .withLocalTemperature(ea.STATE)
+                .withSetpoint('current_heating_setpoint', 5, 35, 0.5, ea.STATE_SET)
+                .withLocalTemperatureCalibration(-10, 10, 0.1, ea.STATE_SET)
+                .withPreset(
+                    [
+                        'off',
+                        'antifrost',
+                        'eco',
+                        'comfort',
+                        'custom',
+                        'program',
+                        'full_open',
+                        'vacation',
+                        'boost',
+                    ],
+                    ea.STATE_SET,
+                )
+                .withRunningState(['idle', 'heat'], ea.STATE),
 
-        e
-            .enum('system_mode', ea.STATE_SET, ['on-off', 'pid'])
-            .withDescription('Temperature regulation algorithm'),
+            e
+                .enum('system_mode', ea.STATE_SET, ['on-off', 'pid'])
+                .withDescription('Temperature regulation algorithm'),
 
-        e
-            .numeric('switch_hysteresis', ea.STATE_SET)
-            .withUnit('°C')
-            .withValueMin(0.5)
-            .withValueMax(5)
-            .withValueStep(0.1),
-
-        e
-            .numeric('upper_temperature_limit', ea.STATE_SET)
-            .withUnit('°C')
-            .withValueMin(20)
-            .withValueMax(35)
-            .withValueStep(0.5),
-
-        e
-            .numeric('comfort_temperature', ea.STATE_SET)
-            .withUnit('°C')
-            .withValueMin(15.5)
-            .withValueMax(35)
-            .withValueStep(0.5),
-
-        e
-            .numeric('eco_temperature', ea.STATE_SET)
-            .withUnit('°C')
-            .withValueMin(5.5)
-            .withValueMax(20.5)
-            .withValueStep(0.5),
-
-        e
-            .numeric('antifrost_temperature', ea.STATE_SET)
-            .withUnit('°C')
-            .withValueMin(5)
-            .withValueMax(14.5)
-            .withValueStep(0.5),
-
-        e.binary('window_detection', ea.STATE_SET, 'ON', 'OFF'),
-        e.binary('window', ea.STATE, 'OPEN', 'CLOSE'),
-        e.binary('frost_protection', ea.STATE_SET, 'ON', 'OFF'),
-
-        e.enum('display_brightness', ea.STATE_SET, ['high', 'medium', 'low']),
-        e.enum('screen_orientation', ea.STATE_SET, ['up', 'down']),
-
-        e
-            .numeric('position', ea.STATE)
-            .withUnit('%')
-            .withValueMin(0)
-            .withValueMax(100),
-
-        ...tuya.exposes.scheduleAllDays(
-            ea.STATE_SET,
-            'HH:MM/C HH:MM/C HH:MM/C HH:MM/C HH:MM/C HH:MM/C',
-        ),
-
-        e
-            .numeric('vacation_days', ea.STATE_SET)
-            .withUnit('d')
-            .withValueMin(1)
-            .withValueMax(60)
-            .withValueStep(1)
-            .withDescription('Number of days used when starting Vacation'),
-
-        e.binary('vacation', ea.STATE_SET, 'ON', 'OFF'),
-
-        e
-            .numeric('vacation_days_active', ea.STATE)
-            .withUnit('d')
-            .withDescription('Vacation value reported by the TRV; 0 means inactive'),
-
-        e
-            .numeric('boost_duration', ea.STATE_SET)
-            .withUnit('min')
-            .withValueMin(30)
-            .withValueMax(120)
-            .withValueStep(30)
-            .withPreset('30 min', 30)
-            .withPreset('60 min', 60)
-            .withPreset('90 min', 90)
-            .withPreset('120 min', 120),
-
-        e.binary('boost', ea.STATE_SET, 'ON', 'OFF'),
-
-        e
-            .numeric('boost_minutes_active', ea.STATE)
-            .withUnit('min')
-            .withDescription('Boost value reported by the TRV; 0 means inactive'),
-    ],
-};
-
-export default definition;
+            e
+                .numeric('switch_hysteresis', ea.STATE_SET)
+                .withUnit('°C')
