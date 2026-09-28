@@ -1,11 +1,16 @@
 // BEOK TRV-705ZB / TS0601 / _TZE284_ltwbm23f
 // Zigbee2MQTT external converter
 //
-// v11: supports both observed BEOK TRV-705ZB firmware/capability variants.
+// v12: supports both observed BEOK TRV-705ZB firmware/capability variants.
 // The enhanced variant has the same TS0601/_TZE284_ltwbm23f fingerprint and
-// appVersion as the original, so it is detected dynamically from startup
-// Tuya capability datapoints (DP125, DP112, DP35). Enhanced exposes are only
-// shown after the device actually reports those datapoints.
+// appVersion as the original, so fingerprinting cannot distinguish them.
+//
+// IMPORTANT: enhanced capability is enabled ONLY after the device reports
+// DP125 with the sniff-verified marker value 0x170B (5899).
+// DP35, DP112 and DP110 are NOT sufficient markers because they can also be
+// present on the original variant.
+//
+// A new meta key is used in v12 so stale v11 capability flags are ignored.
 // Switch hysteresis SET is sent atomically with DP127=1 (ON-OFF), because
 // the sniffed successful DP115 writes all occurred while regulation mode
 // was ON-OFF.
@@ -38,8 +43,7 @@ const ea = exposes.access;
 const vacationDaysCache = new Map();
 const boostDurationCache = new Map();
 
-const META_ENHANCED = 'beokTrv705Enhanced';
-const META_THRUST = 'beokTrv705HasThrust';
+const META_ENHANCED = 'beokTrv705EnhancedDp125_170B_v12';
 const META_DP126 = 'beokTrv705Dp126';
 
 const markCapability = (device, meta, key, value = true) => {
@@ -56,6 +60,8 @@ const storeDeviceMeta = (device, key, value) => {
     device.meta[key] = value;
     device.save();
 };
+
+const isEnhancedVariant = (device) => device?.meta?.[META_ENHANCED] === true;
 
 const enhancedDp126Base = (device) => {
     let raw = Number(device?.meta?.[META_DP126] ?? 7);
@@ -219,7 +225,16 @@ const fzBeok = {
         let receivedVacation;
         let receivedBoost;
 
-        for (const dpValue of msg.data.dpValues ?? []) {
+        const dpValues = msg.data.dpValues ?? [];
+        const hasEnhancedMarker = dpValues.some(
+            (dpValue) => dpValue.dp === 125 && Number(getDpValue(dpValue)) === 0x170b,
+        );
+
+        if (hasEnhancedMarker) {
+            markCapability(meta.device, meta, META_ENHANCED, true);
+        }
+
+        for (const dpValue of dpValues) {
             const dp = dpValue.dp;
             const value = getDpValue(dpValue);
 
@@ -264,10 +279,16 @@ const fzBeok = {
 
                 case 35:
                 case 112:
+                    // Observed on the enhanced capture, but not unique enough to use
+                    // as a variant marker. Keep ignored.
+                    break;
+
                 case 125:
-                    // Enhanced TRV-705ZB capability markers. They are reported at startup
-                    // by the second observed variant but not by the original one.
-                    markCapability(meta.device, meta, META_ENHANCED, true);
+                    // Exact enhanced-variant marker captured at startup: 0x170B.
+                    // Other DP125 values must NOT enable enhanced controls.
+                    if (Number(value) === 0x170b) {
+                        markCapability(meta.device, meta, META_ENHANCED, true);
+                    }
                     break;
 
                 case 47:
@@ -291,8 +312,12 @@ const fzBeok = {
                 }
 
                 case 110:
-                    markCapability(meta.device, meta, META_THRUST, true);
-                    result.thrust_mode = thrustFrom[Number(value)];
+                    // The original variant also reports DP110, but does not support
+                    // the enhanced Auto/Normal/Turbo behaviour. Only expose/decode it
+                    // after the exact DP125=0x170B marker has identified the variant.
+                    if (hasEnhancedMarker || isEnhancedVariant(meta.device)) {
+                        result.thrust_mode = thrustFrom[Number(value)];
+                    }
                     break;
 
                 case 111:
@@ -358,7 +383,7 @@ const fzBeok = {
                     // DP126=69 (0x45) is the Vacation start companion command and
                     // exists on the original variant too. Never interpret it as the
                     // enhanced settings bitmap.
-                    if (raw === 69 || !meta.device?.meta?.[META_ENHANCED]) break;
+                    if (raw === 69 || !isEnhancedVariant(meta.device)) break;
 
                     const previousRaw = Number(meta.device?.meta?.[META_DP126] ?? 7);
                     storeDeviceMeta(meta.device, META_DP126, raw);
@@ -649,7 +674,7 @@ const tzBeok = {
             }
 
             case 'temporary_mode': {
-                if (!meta.device?.meta?.[META_ENHANCED]) {
+                if (!isEnhancedVariant(meta.device)) {
                     throw new Error('temporary_mode is not reported by this TRV variant');
                 }
                 if (!['enabled', 'disabled'].includes(value)) {
@@ -664,7 +689,7 @@ const tzBeok = {
             }
 
             case 'critical_low_battery_action': {
-                if (!meta.device?.meta?.[META_ENHANCED]) {
+                if (!isEnhancedVariant(meta.device)) {
                     throw new Error('critical_low_battery_action is not reported by this TRV variant');
                 }
                 if (!['close_valve', 'open_valve_30'].includes(value)) {
@@ -679,7 +704,7 @@ const tzBeok = {
             }
 
             case 'enhanced_child_lock': {
-                if (!meta.device?.meta?.[META_ENHANCED]) {
+                if (!isEnhancedVariant(meta.device)) {
                     throw new Error('enhanced_child_lock is not reported by this TRV variant');
                 }
                 const enabled = value === 'ON' || value === true;
@@ -691,8 +716,8 @@ const tzBeok = {
             }
 
             case 'thrust_mode': {
-                if (!meta.device?.meta?.[META_THRUST]) {
-                    throw new Error('thrust_mode has not been reported by this TRV');
+                if (!isEnhancedVariant(meta.device)) {
+                    throw new Error('thrust_mode is not supported by this TRV variant');
                 }
                 if (!(value in thrustTo)) throw new Error(`Invalid thrust_mode: ${value}`);
 
@@ -701,7 +726,7 @@ const tzBeok = {
 
                 // On the enhanced variant selecting Auto is immediately followed
                 // by DP126 bit 0x2000, which starts valve calibration.
-                if (value === 'auto' && meta.device?.meta?.[META_ENHANCED]) {
+                if (value === 'auto' && isEnhancedVariant(meta.device)) {
                     const raw = enhancedDp126Base(meta.device) | 0x2000;
                     await writeEnhancedDp126(entity, meta, raw);
                     state.valve_calibration = 'running';
@@ -727,7 +752,7 @@ const tzBeok = {
                 await tuya.sendDataPointEnum(entity, 111, 0);
                 await tuya.sendDataPointEnum(entity, 113, 0);
 
-                if (meta.device?.meta?.[META_ENHANCED]) {
+                if (isEnhancedVariant(meta.device)) {
                     await writeEnhancedDp126(entity, meta, 7);
                     state.temporary_mode = 'enabled';
                     state.critical_low_battery_action = 'close_valve';
@@ -752,7 +777,7 @@ const tzBeok = {
                 state.antifrost_temperature = 5;
                 state.display_brightness = 'high';
                 state.screen_orientation = 'up';
-                if (meta.device?.meta?.[META_THRUST]) state.thrust_mode = 'auto';
+                if (isEnhancedVariant(meta.device)) state.thrust_mode = 'auto';
                 break;
             }
 
@@ -962,39 +987,13 @@ const definition = {
     fromZigbee: [fzBeok],
     toZigbee: [tzBeok],
 
-    configure: tuya.configureMagicPacket,
-    onEvent: tuya.onEventSetLocalTime,
+    configure: async (device, coordinatorEndpoint) => {
+        await tuya.configureMagicPacket(device, coordinatorEndpoint);
+        await device.getEndpoint(1).command('manuSpecificTuya', 'dataQuery', {});
+    },
 
-    exposes: (device) => {
-        const list = [
-            e.battery(),
-            e.child_lock(),
-
-            e
-                .climate()
-                .withLocalTemperature(ea.STATE)
-                .withSetpoint('current_heating_setpoint', 5, 35, 0.5, ea.STATE_SET)
-                .withLocalTemperatureCalibration(-10, 10, 0.1, ea.STATE_SET)
-                .withPreset(
-                    [
-                        'off',
-                        'antifrost',
-                        'eco',
-                        'comfort',
-                        'custom',
-                        'program',
-                        'full_open',
-                        'vacation',
-                        'boost',
-                    ],
-                    ea.STATE_SET,
-                )
-                .withRunningState(['idle', 'heat'], ea.STATE),
-
-            e
-                .enum('system_mode', ea.STATE_SET, ['on-off', 'pid'])
-                .withDescription('Temperature regulation algorithm'),
-
-            e
-                .numeric('switch_hysteresis', ea.STATE_SET)
-                .withUnit('°C')
+    // Preserve the working local-time handler and also request a datapoint dump
+    // whenever the device announces. This allows the enhanced marker to be
+    // rediscovered without removing/re-pairing the TRV.
+    onEvent: async (type, data, device) => {
+        await tuya.onEventSetLocalTime(type, data, device);
