@@ -2,6 +2,8 @@
 
 Custom Zigbee2MQTT external converter for the BEOK TRV-705ZB thermostatic radiator valve family.
 
+![BEOK TRV-705ZB thermostatic radiator valve](images/beok-trv705zb.jpg)
+
 The converter supports two observed hardware/firmware capability variants which use the same Zigbee fingerprint.
 
 ## Supported fingerprint
