@@ -257,3 +257,27 @@ This was observed on multiple numeric properties and is not specific to this con
 - The converter uses one custom fromZigbee path and one custom toZigbee path to avoid multiple handlers interpreting the same Tuya message.
 
 The implementation has been validated against both observed physical variants. Future firmware revisions using the same fingerprint may require additional capture-based verification.
+
+
+## Home Assistant Lovelace cards
+
+A reusable Home Assistant UI is available for this converter:
+
+- [BEOK TRV-705ZB Home Assistant cards](beok-trv705zb-card.md)
+- JavaScript: [`cards/beok-trv705zb-card.js`](../cards/beok-trv705zb-card.js)
+
+Two card types are provided:
+
+```yaml
+type: custom:beok-trv705zb-status-card
+entity: climate.example_trv
+```
+
+and:
+
+```yaml
+type: custom:beok-trv705zb-full-card
+entity: climate.example_trv
+```
+
+The status card is intended for everyday/tablet use. The full card exposes the complete TRV configuration and schedule editor.
