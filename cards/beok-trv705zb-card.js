@@ -4,7 +4,7 @@
 //   custom:beok-trv705zb-status-card
 //   custom:beok-trv705zb-full-card
 
-const BEOK_VERSION = '1.8.0';
+const BEOK_VERSION = '1.9.0';
 const DAYS = [
   ['monday','Mon'], ['tuesday','Tue'], ['wednesday','Wed'], ['thursday','Thu'],
   ['friday','Fri'], ['saturday','Sat'], ['sunday','Sun'],
@@ -507,6 +507,7 @@ class BeokBase extends HTMLElement {
     details{--section-color:var(--primary-color);border-top:1px solid var(--divider-color)}details[data-section=temperature]{--section-color:var(--primary-color)}details[data-section=regulation]{--section-color:var(--accent-color,var(--primary-color))}details[data-section=protection]{--section-color:var(--success-color,var(--primary-color))}details[data-section=temporary]{--section-color:var(--warning-color,var(--primary-color))}details[data-section=display]{--section-color:var(--info-color,var(--primary-color))}details[data-section=enhanced]{--section-color:var(--purple-color,var(--primary-color))}details[data-section=schedule]{--section-color:var(--primary-color)}details[data-section=advanced]{--section-color:var(--error-color)}
     summary{cursor:pointer;list-style:none;padding:15px 2px;font-weight:600;display:flex;align-items:center;gap:9px;user-select:none}summary::-webkit-details-marker{display:none}summary:before{content:'›';display:inline-block;transition:transform .15s;font-size:20px;color:var(--secondary-text-color)}details[open]>summary:before{transform:rotate(90deg)}summary ha-icon{--mdc-icon-size:21px;color:var(--section-color)}details[open]>summary span{color:var(--section-color)}.section{padding:0 2px 14px}.note,.error,.dirty{font-size:12px}.note{color:var(--secondary-text-color)}.error{color:var(--error-color);margin-top:10px}.dirty{color:var(--warning-color,var(--primary-color))}
     .tabs{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:10px}.tabs button{min-height:38px;padding:6px 2px}.tabs .active{background:var(--primary-color);color:var(--text-primary-color,white)}.sched{display:grid;grid-template-columns:28px minmax(105px,1fr) minmax(180px,1fr);gap:8px;align-items:center;margin:7px 0}.sched .stepper{max-width:none}.period{text-align:center;color:var(--secondary-text-color)}.actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    .compact-card{padding:10px 12px}.compact-card .header{margin-bottom:8px;gap:8px}.compact-card .header-icon{width:34px;height:34px}.compact-card .header-icon ha-icon{--mdc-icon-size:21px}.compact-card .title{font-size:17px}.compact-card .sub{font-size:12px;margin-top:0}.compact-card .metrics{gap:6px;margin-bottom:7px}.compact-card .metric{padding:7px 8px 7px 10px;border-radius:9px}.compact-card .metric-head{margin-bottom:2px}.compact-card .lab{font-size:9px}.compact-card .metric-head ha-icon{--mdc-icon-size:14px}.compact-card .val{font-size:15px}.compact-card .metric-sub{font-size:10px;margin-top:1px}.compact-preset{display:flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:5px 9px;border-radius:9px;background:var(--secondary-background-color);font-size:14px;font-weight:600}.compact-preset ha-icon{--mdc-icon-size:19px;color:var(--primary-color)}
     @media(max-width:600px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.field{grid-template-columns:1fr;gap:6px}.control{justify-content:stretch}.readonly{text-align:left}.stepper{max-width:none;margin-left:0}.tabs{grid-template-columns:repeat(4,1fr)}.sched{grid-template-columns:24px minmax(95px,1fr) minmax(150px,1.25fr)}}
   `; }
 
@@ -648,6 +649,48 @@ class BeokBase extends HTMLElement {
   }
 }
 
+class BeokCompact extends BeokBase {
+  compactMetrics() {
+    const c=this.climate(), a=c?.attributes ?? {}, w=this.windowState();
+    const position=this.positionPercent();
+    const stateMain=prettyState(a.hvac_action ?? c?.state);
+    const stateSub=position ? `Valve ${position}` : '';
+    const battery=this.state('battery');
+    const batteryValue=battery?displayState(battery):'—';
+    const modeState=this.state('system_mode');
+    const regulation=modeState && !['unknown','unavailable',''].includes(String(modeState.state ?? '').toLowerCase())
+      ? prettyOption('system_mode',modeState.state)
+      : '—';
+    const isBoost=a.preset_mode==='boost';
+
+    let html='<div class="metrics">';
+    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room');
+    html+=this.metricHtml('Regulation',regulation,'mdi:tune-variant','regulation-metric');
+    if (isBoost) {
+      html+=`<div class="metric target-metric countdown"><div class="metric-head"><ha-icon icon="mdi:fire-clock"></ha-icon><div class="lab">BOOST</div></div><div class="val" data-boost-countdown>${esc(this.boostCountdownText())}</div></div>`;
+    } else {
+      html+=this.metricHtml('Target',this.targetText(),'mdi:target','target-metric');
+    }
+    html+=`<div class="metric state-metric"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
+    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'alert':''}`);
+    html+=this.metricHtml('Battery',batteryValue,'mdi:battery','battery-metric');
+    html+='</div>';
+    return html;
+  }
+
+  compactPreset() {
+    const preset=this.climate()?.attributes?.preset_mode;
+    if (!preset || preset==='none') return '<div class="compact-preset"><ha-icon icon="mdi:thermostat"></ha-icon><span>—</span></div>';
+    return `<div class="compact-preset"><ha-icon icon="${esc(presetIcon(preset))}"></ha-icon><span>${esc(prettyPreset(preset))}</span></div>`;
+  }
+
+  render() {
+    if (!this.shadowRoot) return;
+    const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; return; }
+    this.shadowRoot.innerHTML=`<style>${this.css()}</style><ha-card><div class="card compact-card">${this.headerHtml('BEOK TRV-705ZB · compact')}${this.compactMetrics()}${this.compactPreset()}${this._error?`<div class="error">${esc(this._error)}</div>`:''}</div></ha-card>`;
+  }
+}
+
 class BeokStatus extends BeokBase {
   render() {
     if (!this.shadowRoot) return;
@@ -688,7 +731,7 @@ class BeokFull extends BeokBase {
     const body=rows.map((x,i)=>`<div class="sched"><div class="period">${i+1}</div><input type="time" data-a="stime" data-i="${i}" value="${esc(x.time)}"><div class="stepper"><button data-a="stemp-step" data-i="${i}" data-dir="-1">−</button><div class="step-value">${esc(fmt(x.temperature))} °C</div><button data-a="stemp-step" data-i="${i}" data-dir="1">+</button></div></div>`).join('');
     const any=Object.values(this._dirty).some(Boolean);
     const fallbackNote=this._scheduleFallback[this._day]?'<div class="note">The TRV has not reported this schedule yet. Showing the Reset All default; Save day/all writes it to the TRV.</div>':'';
-    return `<div class="tabs">${tabs}</div>${fallbackNote}${this._dirty[this._day]?'<div class="dirty">Unsaved changes</div>':''}${body}<div class="actions"><button data-a="copyweek">Copy to weekdays</button><button data-a="copyall">Copy to all days</button><button data-a="reload">Reload day</button><button class="primary" data-a="saveday">Save day</button><button class="primary" data-a="saveall" ${any?'':'disabled'}>Save all</button></div>`;
+    return `<div class="tabs">${tabs}</div>${fallbackNote}<div class="dirty" data-schedule-dirty ${this._dirty[this._day]?'':'hidden'}>Unsaved changes</div>${body}<div class="actions"><button data-a="copyweek">Copy to weekdays</button><button data-a="copyall">Copy to all days</button><button data-a="reload">Reload day</button><button class="primary" data-a="saveday">Save day</button><button class="primary" data-a="saveall" ${any?'':'disabled'}>Save all</button></div>`;
   }
 
   advancedHtml() {
@@ -715,7 +758,22 @@ class BeokFull extends BeokBase {
       else this._openSections.delete(name);
     }));
     r.querySelectorAll('[data-a=day]').forEach((b)=>b.addEventListener('click',(e)=>{this._day=e.currentTarget.dataset.day;this.render();}));
-    r.querySelectorAll('[data-a=stime]').forEach((x)=>x.addEventListener('change',(e)=>{const i=Number(e.target.dataset.i);this._drafts[this._day][i].time=e.target.value;this._dirty[this._day]=true;this.render();}));
+    r.querySelectorAll('[data-a=stime]').forEach((x)=>{
+      const updateTime=(e)=>{
+        const i=Number(e.target.dataset.i);
+        this._drafts[this._day][i].time=e.target.value;
+        this._dirty[this._day]=true;
+        const label=DAYS.find(([d])=>d===this._day)?.[1] ?? this._day;
+        const tab=r.querySelector(`[data-a=day][data-day="${this._day}"]`);
+        if (tab) tab.textContent=`${label}*`;
+        const dirty=r.querySelector('[data-schedule-dirty]');
+        if (dirty) dirty.hidden=false;
+        const saveAll=r.querySelector('[data-a=saveall]');
+        if (saveAll) saveAll.disabled=false;
+      };
+      x.addEventListener('input',updateTime);
+      x.addEventListener('change',updateTime);
+    });
     r.querySelectorAll('[data-a=stemp-step]').forEach((x)=>x.addEventListener('click',(e)=>{const i=Number(e.currentTarget.dataset.i),dir=Number(e.currentTarget.dataset.dir);const cur=Number(this._drafts[this._day][i].temperature);this._drafts[this._day][i].temperature=Math.max(5,Math.min(35,Math.round((cur+dir*0.5)*2)/2));this._dirty[this._day]=true;this.render();}));
     r.querySelector('[data-a=copyweek]')?.addEventListener('click',()=>{const src=this._drafts[this._day];for(const d of ['monday','tuesday','wednesday','thursday','friday'])if(this.id(`schedule_${d}`)){this._drafts[d]=src.map((x)=>({...x}));this._dirty[d]=true;}this.render();});
     r.querySelector('[data-a=copyall]')?.addEventListener('click',()=>{const src=this._drafts[this._day];for(const [d] of DAYS)if(this.id(`schedule_${d}`)){this._drafts[d]=src.map((x)=>({...x}));this._dirty[d]=true;}this.render();});
@@ -726,9 +784,11 @@ class BeokFull extends BeokBase {
   }
 }
 
+if (!customElements.get('beok-trv705zb-compact-card')) customElements.define('beok-trv705zb-compact-card',BeokCompact);
 if (!customElements.get('beok-trv705zb-status-card')) customElements.define('beok-trv705zb-status-card',BeokStatus);
 if (!customElements.get('beok-trv705zb-full-card')) customElements.define('beok-trv705zb-full-card',BeokFull);
 window.customCards=window.customCards||[];
+if(!window.customCards.some((x)=>x.type==='beok-trv705zb-compact-card')) window.customCards.push({type:'beok-trv705zb-compact-card',name:'BEOK TRV-705ZB Compact Card',description:'Minimal read-only BEOK TRV status card',preview:true,getEntitySuggestion:(_h,id)=>domain(id)==='climate'?{config:{type:'custom:beok-trv705zb-compact-card',entity:id}}:null});
 if(!window.customCards.some((x)=>x.type==='beok-trv705zb-status-card')) window.customCards.push({type:'beok-trv705zb-status-card',name:'BEOK TRV-705ZB Status Card',description:'Compact BEOK TRV daily-control card',preview:true,getEntitySuggestion:(_h,id)=>domain(id)==='climate'?{config:{type:'custom:beok-trv705zb-status-card',entity:id}}:null});
 if(!window.customCards.some((x)=>x.type==='beok-trv705zb-full-card')) window.customCards.push({type:'beok-trv705zb-full-card',name:'BEOK TRV-705ZB Full Card',description:'Full BEOK TRV control and schedule editor',preview:false,getEntitySuggestion:(_h,id)=>domain(id)==='climate'?{config:{type:'custom:beok-trv705zb-full-card',entity:id}}:null});
 console.info(`BEOK TRV-705ZB cards v${BEOK_VERSION}`);

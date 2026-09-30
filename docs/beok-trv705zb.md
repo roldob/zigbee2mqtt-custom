@@ -266,7 +266,12 @@ A reusable Home Assistant UI is available for this converter:
 - [BEOK TRV-705ZB Home Assistant cards](beok-trv705zb-card.md)
 - JavaScript: [`cards/beok-trv705zb-card.js`](../cards/beok-trv705zb-card.js)
 
-Two card types are provided:
+Three card types are provided:
+
+```yaml
+type: custom:beok-trv705zb-compact-card
+entity: climate.example_trv
+```
 
 ```yaml
 type: custom:beok-trv705zb-status-card
@@ -280,4 +285,4 @@ type: custom:beok-trv705zb-full-card
 entity: climate.example_trv
 ```
 
-The status card is intended for everyday/tablet use. The full card exposes the complete TRV configuration and schedule editor.
+The compact card is a smaller read-only status view. The status card is intended for everyday/tablet control. The full card exposes the complete TRV configuration and schedule editor.

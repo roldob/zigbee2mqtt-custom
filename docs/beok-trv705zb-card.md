@@ -2,10 +2,22 @@
 
 Dependency-free Lovelace custom cards for the BEOK TRV-705ZB Zigbee2MQTT converter.
 
-The implementation is in [`cards/beok-trv705zb-card.js`](../cards/beok-trv705zb-card.js) and registers two card types:
+The implementation is in [`cards/beok-trv705zb-card.js`](../cards/beok-trv705zb-card.js) and registers three card types:
 
+- `custom:beok-trv705zb-compact-card`
 - `custom:beok-trv705zb-status-card`
 - `custom:beok-trv705zb-full-card`
+
+## Compact card
+
+Minimal read-only status card for dense dashboards.
+
+```yaml
+type: custom:beok-trv705zb-compact-card
+entity: climate.example_trv
+```
+
+It omits target adjustment and preset selection. The top metrics include the read-only regulation mode (`ON-OFF` or `PID`), while the current preset is shown below with its icon. Layout spacing, header size and status tiles are reduced compared with the status card.
 
 ## Status card
 
@@ -67,6 +79,8 @@ Available actions:
 - Save all
 
 If a TRV has not reported a schedule yet, the editor displays the converter's Reset All default as an unsaved fallback. It is not written to the TRV until Save is used.
+
+The time picker updates the schedule draft without rebuilding the editor DOM, so hour and minute can be changed repeatedly while the native time picker remains open.
 
 ## Missing numeric reports
 
