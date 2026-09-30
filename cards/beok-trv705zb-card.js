@@ -764,7 +764,7 @@ class BeokFull extends BeokBase {
         this._drafts[this._day][i].time=e.target.value;
         this._dirty[this._day]=true;
         const label=DAYS.find(([d])=>d===this._day)?.[1] ?? this._day;
-        const tab=r.querySelector(`[data-a=day][data-day="${this._day}"]`);
+        const tab=r.querySelector(`[data-a=day][data-day=\"${this._day}\"]`);
         if (tab) tab.textContent=`${label}*`;
         const dirty=r.querySelector('[data-schedule-dirty]');
         if (dirty) dirty.hidden=false;
