@@ -992,8 +992,167 @@ const definition = {
         await device.getEndpoint(1).command('manuSpecificTuya', 'dataQuery', {});
     },
 
-    // Preserve the working local-time handler and also request a datapoint dump
-    // whenever the device announces. This allows the enhanced marker to be
-    // rediscovered without removing/re-pairing the TRV.
-    onEvent: async (type, data, device) => {
-        await tuya.onEventSetLocalTime(type, data, device);
+
+    // Request a datapoint dump whenever the device announces. The current
+    // zigbee-herdsman-converters onEvent API passes a single event object.
+    // Do not call the removed tuya.onEventSetLocalTime helper.
+    onEvent: async (event) => {
+        if (event?.type === 'deviceAnnounce' && event.data?.device?.getEndpoint) {
+            try {
+                await event.data.device.getEndpoint(1).command('manuSpecificTuya', 'dataQuery', {});
+            } catch {
+                // Best-effort capability query; normal operation must continue.
+            }
+        }
+    },
+
+    exposes: (device) => {
+        const list = [
+            e.battery(),
+            e.child_lock(),
+
+            e
+                .climate()
+                .withLocalTemperature(ea.STATE)
+                .withSetpoint('current_heating_setpoint', 5, 35, 0.5, ea.STATE_SET)
+                .withLocalTemperatureCalibration(-10, 10, 0.1, ea.STATE_SET)
+                .withPreset(
+                    [
+                        'off',
+                        'antifrost',
+                        'eco',
+                        'comfort',
+                        'custom',
+                        'program',
+                        'full_open',
+                        'vacation',
+                        'boost',
+                    ],
+                    ea.STATE_SET,
+                )
+                .withRunningState(['idle', 'heat'], ea.STATE),
+
+            e
+                .enum('system_mode', ea.STATE_SET, ['on-off', 'pid'])
+                .withDescription('Temperature regulation algorithm'),
+
+            e
+                .numeric('switch_hysteresis', ea.STATE_SET)
+                .withUnit('°C')
+                .withValueMin(0.5)
+                .withValueMax(5)
+                .withValueStep(0.1),
+
+            e
+                .numeric('upper_temperature_limit', ea.STATE_SET)
+                .withUnit('°C')
+                .withValueMin(20)
+                .withValueMax(35)
+                .withValueStep(0.5),
+
+            e
+                .numeric('comfort_temperature', ea.STATE_SET)
+                .withUnit('°C')
+                .withValueMin(15.5)
+                .withValueMax(35)
+                .withValueStep(0.5),
+
+            e
+                .numeric('eco_temperature', ea.STATE_SET)
+                .withUnit('°C')
+                .withValueMin(5.5)
+                .withValueMax(20.5)
+                .withValueStep(0.5),
+
+            e
+                .numeric('antifrost_temperature', ea.STATE_SET)
+                .withUnit('°C')
+                .withValueMin(5)
+                .withValueMax(14.5)
+                .withValueStep(0.5),
+
+            e.binary('window_detection', ea.STATE_SET, 'ON', 'OFF'),
+            e.binary('window', ea.STATE, 'OPEN', 'CLOSE'),
+            e.binary('frost_protection', ea.STATE_SET, 'ON', 'OFF'),
+
+            e.enum('display_brightness', ea.STATE_SET, ['high', 'medium', 'low']),
+            e.enum('screen_orientation', ea.STATE_SET, ['up', 'down']),
+
+            e
+                .numeric('position', ea.STATE)
+                .withUnit('%')
+                .withValueMin(0)
+                .withValueMax(100),
+
+            ...tuya.exposes.scheduleAllDays(
+                ea.STATE_SET,
+                'HH:MM/C HH:MM/C HH:MM/C HH:MM/C HH:MM/C HH:MM/C',
+            ),
+
+            e
+                .numeric('vacation_days', ea.STATE_SET)
+                .withUnit('d')
+                .withValueMin(1)
+                .withValueMax(60)
+                .withValueStep(1)
+                .withDescription('Number of days used when starting Vacation'),
+
+            e.binary('vacation', ea.STATE_SET, 'ON', 'OFF'),
+
+            e
+                .numeric('vacation_days_active', ea.STATE)
+                .withUnit('d')
+                .withDescription('Vacation value reported by the TRV; 0 means inactive'),
+
+            e
+                .numeric('boost_duration', ea.STATE_SET)
+                .withUnit('min')
+                .withValueMin(30)
+                .withValueMax(120)
+                .withValueStep(30)
+                .withPreset('30 min', 30)
+                .withPreset('60 min', 60)
+                .withPreset('90 min', 90)
+                .withPreset('120 min', 120),
+
+            e.binary('boost', ea.STATE_SET, 'ON', 'OFF'),
+
+            e
+                .numeric('boost_minutes_active', ea.STATE)
+                .withUnit('min')
+                .withDescription('Boost value reported by the TRV; 0 means inactive'),
+
+            e
+                .enum('reset_all_settings', ea.SET, ['RESET'])
+                .withDescription('Reset all TRV settings to the defaults observed in the vendor app')
+                .withCategory('config'),
+        ];
+
+        // These controls only exist on the enhanced variant. The fingerprint is
+        // identical, therefore they are added ONLY after the exact sniff-verified
+        // DP125=0x170B marker has been reported by the device.
+        if (isEnhancedVariant(device)) {
+            list.push(
+                e
+                    .enum('thrust_mode', ea.STATE_SET, ['auto', 'normal', 'turbo'])
+                    .withDescription('Valve motor thrust mode'),
+                e
+                    .enum('temporary_mode', ea.STATE_SET, ['enabled', 'disabled'])
+                    .withDescription('Return a manual temperature override to the schedule at the next scheduled transition'),
+                e
+                    .enum('critical_low_battery_action', ea.STATE_SET, ['close_valve', 'open_valve_30'])
+                    .withDescription('Valve action when the battery reaches the critical-low level'),
+                e
+                    .binary('enhanced_child_lock', ea.STATE_SET, 'ON', 'OFF')
+                    .withDescription('Double-protection child lock'),
+                e
+                    .enum('valve_calibration', ea.STATE, ['idle', 'running', 'completed'])
+                    .withDescription('Automatic valve calibration status'),
+            );
+        }
+
+        return list;
+    },
+};
+
+export default definition;
