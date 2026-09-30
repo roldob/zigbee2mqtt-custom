@@ -127,14 +127,14 @@ with resource type **JavaScript Module**.
 During development or upgrades, a query suffix can be used to avoid browser cache, for example:
 
 ```text
-/local/beok-trv705zb-card.js?v=1.8
+/local/beok-trv705zb-card.js?v=1.13
 ```
 
 Then hard-refresh the browser.
 
 ## Dashboard visibility
 
-The two card types are intentionally separate. Home Assistant's normal card/dashboard visibility rules can be used so a wall-tablet user sees only the status card while an administrative user sees the full settings card.
+The three card types are intentionally separate. Home Assistant's normal card/dashboard visibility rules can be used so a wall-tablet user sees only the status card while an administrative user sees the full settings card.
 
 ## Privacy
 
