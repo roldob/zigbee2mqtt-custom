@@ -51,7 +51,7 @@ type: custom:beok-trv705zb-full-card
 entity: climate.example_trv
 ```
 
-The full card includes the status controls plus collapsible sections for:
+The full card keeps the daily controls visible and places all configuration controls inside one top-level **TRV settings** section. This section is closed by default. Inside it, the existing collapsible subsections remain available for:
 
 - preset temperatures
 - regulation mode, upper limit, hysteresis and temperature calibration
@@ -124,13 +124,13 @@ Add a dashboard resource:
 
 with resource type **JavaScript Module**.
 
-During development or upgrades, a query suffix can be used to avoid browser cache, for example:
+Keep the resource URL unchanged when updating the card:
 
 ```text
-/local/beok-trv705zb-card.js?v=1.13
+/local/beok-trv705zb-card.js
 ```
 
-Then hard-refresh the browser.
+After replacing the JavaScript file, hard-refresh or reload the Home Assistant frontend if an older cached copy is still shown.
 
 ## Dashboard visibility
 
