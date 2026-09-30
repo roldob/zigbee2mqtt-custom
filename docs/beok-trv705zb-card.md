@@ -28,9 +28,21 @@ type: custom:beok-trv705zb-status-card
 entity: climate.example_trv
 ```
 
-It shows current room temperature, target/Boost countdown, preset, heating state, valve position, window state and battery. It provides touch-friendly target controls and an icon-based preset selector.
+It shows current room temperature, target/Boost countdown, read-only regulation mode (`ON-OFF` or `PID`), heating state, valve position, window state and battery. The current preset is shown by the icon-based preset selector below the metrics, which remains touch-friendly and editable.
 
 Vacation duration is shown only while Vacation is active. During Boost, the normal target is replaced by a local countdown display and target controls are hidden.
+
+### Status backlight indicators
+
+All three card variants use a translucent, diffused backlight effect on status tiles:
+
+- active heating: static red backlight
+- battery below 50%: static yellow backlight
+- battery below 30%: static orange backlight
+- battery below 20%: pulsing red backlight
+- open window: faster pulsing red backlight
+
+The compact, status and full cards use the same top metric order: Room, Target/Boost, Regulation, State, Window, Battery. The compact card keeps its preset display read-only; the status and full cards keep the preset selector editable.
 
 ## Full card
 

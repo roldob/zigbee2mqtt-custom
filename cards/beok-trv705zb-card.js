@@ -4,7 +4,7 @@
 //   custom:beok-trv705zb-status-card
 //   custom:beok-trv705zb-full-card
 
-const BEOK_VERSION = '1.9.0';
+const BEOK_VERSION = '1.13.0';
 const DAYS = [
   ['monday','Mon'], ['tuesday','Tue'], ['wednesday','Wed'], ['thursday','Thu'],
   ['friday','Fri'], ['saturday','Sat'], ['sunday','Sun'],
@@ -369,6 +369,20 @@ class BeokBase extends HTMLElement {
     return `<div class="metric ${esc(cls)}"><div class="metric-head"><ha-icon icon="${esc(icon)}"></ha-icon><div class="lab">${esc(label)}</div></div><div class="val">${value === '' ? '&nbsp;' : esc(value)}</div></div>`;
   }
 
+  heatingMetricClass(rawState) {
+    const state=String(rawState ?? '').trim().toLowerCase();
+    return ['heating','heat','on'].includes(state) ? 'heating-glow' : '';
+  }
+
+  batteryMetricClass(batteryState) {
+    const level=Number(batteryState?.state);
+    if (!Number.isFinite(level)) return '';
+    if (level < 20) return 'battery-critical';
+    if (level < 30) return 'battery-low';
+    if (level < 50) return 'battery-warning';
+    return '';
+  }
+
   headerHtml(subtitle) {
     return `<div class="header"><div class="header-icon"><ha-icon icon="mdi:radiator"></ha-icon></div><div class="header-text"><div class="title">${esc(this.title())}</div><div class="sub">${esc(subtitle)}</div></div></div>`;
   }
@@ -495,7 +509,11 @@ class BeokBase extends HTMLElement {
   css() { return `
     :host{display:block;position:relative}ha-card{overflow:visible}.card{padding:16px;overflow:visible}
     .header{display:flex;align-items:center;gap:12px;margin-bottom:14px}.header-icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--secondary-background-color);color:var(--primary-color);flex:0 0 auto}.header-icon ha-icon{--mdc-icon-size:25px}.header-text{min-width:0}.title{font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sub{font-size:12px;color:var(--secondary-text-color);margin-top:2px}
-    .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}.metric{--metric-color:var(--primary-color);position:relative;background:var(--secondary-background-color);border-radius:12px;padding:10px 10px 10px 12px;min-width:0;overflow:hidden}.metric:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--metric-color)}.metric-head{display:flex;align-items:center;gap:5px;margin-bottom:4px;min-width:0}.metric-head ha-icon{--mdc-icon-size:16px;color:var(--metric-color);flex:0 0 auto}.metric.room{--metric-color:var(--info-color,var(--primary-color))}.metric.target-metric{--metric-color:var(--primary-color)}.metric.preset-metric{--metric-color:var(--accent-color,var(--primary-color))}.metric.state-metric{--metric-color:var(--state-climate-heat-color,var(--warning-color,var(--primary-color)))}.metric.window-metric{--metric-color:var(--success-color,var(--primary-color))}.metric.battery-metric{--metric-color:var(--success-color,var(--primary-color))}.metric.countdown{--metric-color:var(--warning-color,var(--primary-color))}.metric.alert{--metric-color:var(--error-color);outline:2px solid var(--error-color)}.metric.alert .val{color:var(--error-color)}.lab{font-size:11px;color:var(--secondary-text-color);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.val{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.state-main{line-height:1.15}.metric-sub{font-size:12px;color:var(--secondary-text-color);font-weight:500;line-height:1.2;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}.metric{--metric-color:var(--primary-color);position:relative;background:var(--secondary-background-color);border-radius:12px;padding:10px 10px 10px 12px;min-width:0;overflow:visible;isolation:isolate}.metric>.metric-head,.metric>.val,.metric>.metric-sub{position:relative;z-index:2;min-width:0}.metric .lab,.metric .val,.metric .metric-sub{overflow:hidden;text-overflow:ellipsis}.metric:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--metric-color)}.metric-head{display:flex;align-items:center;gap:5px;margin-bottom:4px;min-width:0}.metric-head ha-icon{--mdc-icon-size:16px;color:var(--metric-color);flex:0 0 auto}.metric.room{--metric-color:var(--info-color,var(--primary-color))}.metric.target-metric{--metric-color:var(--primary-color)}.metric.preset-metric{--metric-color:var(--accent-color,var(--primary-color))}.metric.state-metric{--metric-color:var(--state-climate-heat-color,var(--warning-color,var(--primary-color)))}.metric.window-metric{--metric-color:var(--success-color,var(--primary-color))}.metric.battery-metric{--metric-color:var(--success-color,var(--primary-color))}.metric.countdown{--metric-color:var(--warning-color,var(--primary-color))}
+    .metric.heating-glow,.metric.battery-warning,.metric.battery-low,.metric.battery-critical,.metric.window-open-glow{background:radial-gradient(ellipse at 50% 48%,rgba(var(--glow-rgb),.22) 0%,rgba(var(--glow-rgb),.11) 48%,rgba(var(--glow-rgb),.025) 78%,transparent 100%),color-mix(in srgb,var(--secondary-background-color) 78%,transparent);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);border:1px solid rgba(var(--glow-rgb),.08)}
+    .metric.heating-glow:after,.metric.battery-warning:after,.metric.battery-low:after,.metric.battery-critical:after,.metric.window-open-glow:after{content:'';position:absolute;z-index:0;pointer-events:none;inset:-8px;border-radius:inherit;background:radial-gradient(ellipse at 50% 50%,rgba(var(--glow-rgb),.42) 0%,rgba(var(--glow-rgb),.24) 40%,rgba(var(--glow-rgb),.10) 64%,transparent 82%);filter:blur(10px);opacity:.68;transform:scale(.97)}
+    .metric.heating-glow{--metric-color:#ef5350;--glow-rgb:239,83,80}.metric.battery-warning{--metric-color:#fbc02d;--glow-rgb:251,192,45}.metric.battery-low{--metric-color:#fb8c00;--glow-rgb:251,140,0}.metric.battery-critical{--metric-color:#e53935;--glow-rgb:229,57,53}.metric.window-open-glow{--metric-color:#e53935;--glow-rgb:229,57,53}
+    .metric.battery-critical:after{animation:beok-backlight-pulse 2s ease-in-out infinite}.metric.window-open-glow:after{animation:beok-window-pulse 1.05s ease-in-out infinite}@keyframes beok-backlight-pulse{0%,100%{opacity:.45;transform:scale(.96);filter:blur(9px)}50%{opacity:.92;transform:scale(1.035);filter:blur(13px)}}@keyframes beok-window-pulse{0%,100%{opacity:.40;transform:scale(.955);filter:blur(9px)}50%{opacity:1;transform:scale(1.05);filter:blur(14px)}}@media (prefers-reduced-motion:reduce){.metric.battery-critical:after,.metric.window-open-glow:after{animation:none;opacity:.68;transform:scale(.97);filter:blur(10px)}}.lab{font-size:11px;color:var(--secondary-text-color);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.val{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.state-main{line-height:1.15}.metric-sub{font-size:12px;color:var(--secondary-text-color);font-weight:500;line-height:1.2;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .target{display:grid;grid-template-columns:56px 1fr 56px;gap:10px;align-items:center;margin:12px 0}.target .v{text-align:center;font-size:25px;font-weight:600}
     button,select,input{font:inherit;box-sizing:border-box}button{border:0;border-radius:10px;min-height:44px;padding:8px 12px;background:var(--secondary-background-color);color:var(--primary-text-color);cursor:pointer;touch-action:manipulation}.big{font-size:27px;padding:0}.primary{background:var(--primary-color);color:var(--text-primary-color,white)}.danger{background:var(--error-color);color:white}button:disabled{opacity:.45}
     select,input[type=time],input[type=text]{width:100%;min-height:42px;border:1px solid var(--divider-color);border-radius:8px;padding:6px 8px;background:var(--card-background-color);color:var(--primary-text-color)}
@@ -523,12 +541,18 @@ class BeokBase extends HTMLElement {
   metrics() {
     const c=this.climate(), a=c?.attributes ?? {}, w=this.windowState();
     const presetRaw=a.preset_mode;
-    const preset=prettyPreset(presetRaw);
     const position=this.positionPercent();
-    const stateMain=prettyState(a.hvac_action ?? c?.state);
+    const rawState=a.hvac_action ?? c?.state;
+    const stateMain=prettyState(rawState);
     const stateSub=position ? `Valve ${position}` : '';
     const battery=this.state('battery');
     const batteryValue=battery?displayState(battery):'—';
+    const stateGlow=this.heatingMetricClass(rawState);
+    const batteryGlow=this.batteryMetricClass(battery);
+    const modeState=this.state('system_mode');
+    const regulation=modeState && !['unknown','unavailable',''].includes(String(modeState.state ?? '').toLowerCase())
+      ? prettyOption('system_mode',modeState.state)
+      : '—';
     const countdown=this.activeCountdown();
     const isBoost=presetRaw==='boost';
 
@@ -539,10 +563,10 @@ class BeokBase extends HTMLElement {
     } else {
       html+=this.metricHtml('Target',this.targetText(),'mdi:target','target-metric');
     }
-    html+=this.metricHtml('Preset',preset,'mdi:thermostat','preset-metric');
-    html+=`<div class="metric state-metric"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
-    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'alert':''}`);
-    html+=this.metricHtml('Battery',batteryValue,'mdi:battery','battery-metric');
+    html+=this.metricHtml('Regulation',regulation,'mdi:tune-variant','regulation-metric');
+    html+=`<div class="metric state-metric ${stateGlow}"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
+    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`);
+    html+=this.metricHtml('Battery',batteryValue,'mdi:battery',`battery-metric ${batteryGlow}`);
     if (countdown && !isBoost) html+=this.metricHtml(countdown.label,countdown.value,countdown.icon,countdown.cls);
     html+='</div>';
     return html;
@@ -653,10 +677,13 @@ class BeokCompact extends BeokBase {
   compactMetrics() {
     const c=this.climate(), a=c?.attributes ?? {}, w=this.windowState();
     const position=this.positionPercent();
-    const stateMain=prettyState(a.hvac_action ?? c?.state);
+    const rawState=a.hvac_action ?? c?.state;
+    const stateMain=prettyState(rawState);
     const stateSub=position ? `Valve ${position}` : '';
     const battery=this.state('battery');
     const batteryValue=battery?displayState(battery):'—';
+    const stateGlow=this.heatingMetricClass(rawState);
+    const batteryGlow=this.batteryMetricClass(battery);
     const modeState=this.state('system_mode');
     const regulation=modeState && !['unknown','unavailable',''].includes(String(modeState.state ?? '').toLowerCase())
       ? prettyOption('system_mode',modeState.state)
@@ -665,15 +692,15 @@ class BeokCompact extends BeokBase {
 
     let html='<div class="metrics">';
     html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room');
-    html+=this.metricHtml('Regulation',regulation,'mdi:tune-variant','regulation-metric');
     if (isBoost) {
       html+=`<div class="metric target-metric countdown"><div class="metric-head"><ha-icon icon="mdi:fire-clock"></ha-icon><div class="lab">BOOST</div></div><div class="val" data-boost-countdown>${esc(this.boostCountdownText())}</div></div>`;
     } else {
       html+=this.metricHtml('Target',this.targetText(),'mdi:target','target-metric');
     }
-    html+=`<div class="metric state-metric"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
-    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'alert':''}`);
-    html+=this.metricHtml('Battery',batteryValue,'mdi:battery','battery-metric');
+    html+=this.metricHtml('Regulation',regulation,'mdi:tune-variant','regulation-metric');
+    html+=`<div class="metric state-metric ${stateGlow}"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
+    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`);
+    html+=this.metricHtml('Battery',batteryValue,'mdi:battery',`battery-metric ${batteryGlow}`);
     html+='</div>';
     return html;
   }
