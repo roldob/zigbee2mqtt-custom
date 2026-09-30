@@ -141,7 +141,7 @@ The three card types are intentionally separate. Home Assistant's normal card/da
 
 English is the default/fallback UI language. The cards automatically read the Home Assistant frontend language. When the Home Assistant UI language is Hungarian (`hu` or a Hungarian locale such as `hu-HU`), card-owned labels, status text, preset names, buttons, notes, schedule-editor text, tooltips and confirmation prompts are shown in Hungarian.
 
-Entity IDs, Home Assistant service calls, Zigbee2MQTT state values and write payloads are not translated; localization affects display text only. Other UI languages currently fall back to English.
+Entity IDs, Home Assistant service calls, Zigbee2MQTT state values and write payloads are not translated; localization affects display text only. Hungarian display formatting also normalizes the read-only window state to `NYITVA / ZÁRVA`, translates brightness levels to `Magas / Közepes / Alacsony`, and renders day/minute units as `nap` and `perc`. Other UI languages currently fall back to English.
 
 ## Privacy
 

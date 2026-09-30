@@ -130,6 +130,9 @@ const HU_TEXT = {
   'Down': 'Le',
   'Running': 'Folyamatban',
   'Completed': 'Kész',
+  'High': 'Magas',
+  'Medium': 'Közepes',
+  'Low': 'Alacsony',
   'Mon': 'H',
   'Tue': 'K',
   'Wed': 'Sze',
@@ -769,9 +772,22 @@ class BeokBase extends HTMLElement {
     return `<div class="preset-wrap ${this._presetMenuOpen?'open':''}" data-preset-wrap><button class="preset-button" data-a="preset-toggle" aria-expanded="${this._presetMenuOpen?'true':'false'}"><ha-icon icon="${esc(currentIcon)}"></ha-icon><span class="${currentValid?'':'preset-current-empty'}">${currentValid?esc(currentLabel):'—'}</span><ha-icon class="chevron" icon="mdi:chevron-down"></ha-icon></button><div class="preset-menu">${options}</div></div>`;
   }
 
+  displayUnit(unit) {
+    const raw=String(unit ?? '');
+    if (this.language() !== 'hu') return raw;
+    return ({d:'nap', min:'perc'})[raw] ?? raw;
+  }
+
+  displayReadonlyState(key,s) {
+    if (key === 'window') return this.windowState() ?? '—';
+    if (!s || ['unknown','unavailable',''].includes(String(s.state ?? '').toLowerCase())) return '—';
+    const unit=this.displayUnit(s.attributes?.unit_of_measurement ?? '');
+    return unit ? `${s.state} ${unit}` : s.state;
+  }
+
   numberStepper(entityId,s,action='step-number',activeKind=null) {
     const value=this.numberValue(entityId,s);
-    const unit=s.attributes?.unit_of_measurement ?? '';
+    const unit=this.displayUnit(s.attributes?.unit_of_measurement ?? '');
     const text=value==null?'—':`${fmt(value)}${unit?` ${unit}`:''}`;
     const fallback=this.numberUsesFallback(entityId,s);
     const middle=fallback && value!=null
@@ -828,7 +844,7 @@ class BeokBase extends HTMLElement {
       return `<div class="field"><div>${esc(l)}</div><div class="control">${this.toggleControl(id,on,on?'UNLOCK':'LOCK','LOCKED','UNLOCKED','lock')}</div></div>`;
     }
 
-    return `<div class="field"><div>${esc(l)}</div><div class="control readonly">${esc(displayState(s))}</div></div>`;
+    return `<div class="field"><div>${esc(l)}</div><div class="control readonly">${esc(this.displayReadonlyState(key,s))}</div></div>`;
   }
 
   bindCommon() {
