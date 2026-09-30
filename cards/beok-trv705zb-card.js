@@ -56,6 +56,113 @@ const LABELS = {
   thrust_mode: 'Thrust mode', valve_calibration: 'Valve calibration', reset_all_settings: 'Reset all settings',
 };
 
+
+const HU_TEXT = {
+  'BEOK TRV-705ZB · compact': 'BEOK TRV-705ZB · kompakt',
+  'BEOK TRV-705ZB · full control': 'BEOK TRV-705ZB · teljes vezérlés',
+  'Room': 'Szoba',
+  'Target': 'Cél',
+  'Regulation': 'Szabályozás',
+  'STATE': 'ÁLLAPOT',
+  'Window': 'Ablak',
+  'Battery': 'Elem',
+  'BOOST': 'GYORSFŰTÉS',
+  'Heating': 'Fűtés',
+  'Heat': 'Fűtés',
+  'Idle': 'Inaktív',
+  'OPEN': 'NYITVA',
+  'CLOSE': 'ZÁRVA',
+  'CLOSED': 'ZÁRVA',
+  'ON': 'BE',
+  'OFF': 'KI',
+  'LOCKED': 'ZÁROLVA',
+  'UNLOCKED': 'FELOLDVA',
+  'Full open': 'Teljesen nyitva',
+  'Antifrost': 'Fagyvédelem',
+  'Comfort': 'Komfort',
+  'Eco': 'Eco',
+  'Program': 'Program',
+  'Vacation': 'Szabadság',
+  'Boost': 'Gyorsfűtés',
+  'Custom': 'Egyedi',
+  'Off': 'Ki',
+  'Vacation days': 'Szabadság napjai',
+  'Boost left': 'Gyorsfűtésből hátra',
+  'TRV settings': 'TRV beállítások',
+  'Preset temperatures': 'Preset hőmérsékletek',
+  'Protection': 'Védelem',
+  'Vacation & boost': 'Szabadság és gyorsfűtés',
+  'Display': 'Kijelző',
+  'Schedule': 'Időprogram',
+  'Enhanced functions': 'Kibővített funkciók',
+  'Advanced': 'Speciális',
+  'Regulation mode': 'Szabályozási mód',
+  'Switch hysteresis': 'Kapcsolási hiszterézis',
+  'Upper temperature limit': 'Felső hőmérsékletkorlát',
+  'Comfort temperature': 'Komfort hőmérséklet',
+  'Eco temperature': 'Eco hőmérséklet',
+  'Antifrost temperature': 'Fagyvédelmi hőmérséklet',
+  'Temperature calibration': 'Hőmérséklet-kalibráció',
+  'Window detection': 'Ablakérzékelés',
+  'Window state': 'Ablak állapota',
+  'Frost protection': 'Fagyvédelem',
+  'Child lock': 'Gyerekzár',
+  'Display brightness': 'Kijelző fényereje',
+  'Screen orientation': 'Kijelző tájolása',
+  'Vacation duration': 'Szabadság időtartama',
+  'Vacation active days': 'Aktív szabadságnapok',
+  'Boost duration': 'Gyorsfűtés időtartama',
+  'Boost minutes active': 'Aktív gyorsfűtés percei',
+  'Temporary mode': 'Ideiglenes mód',
+  'Critical low battery action': 'Kritikus elemmerülés művelete',
+  'Enhanced child lock': 'Kibővített gyerekzár',
+  'Thrust mode': 'Szelepmotor erőssége',
+  'Valve calibration': 'Szelepkalibráció',
+  'Reset all settings': 'Minden beállítás visszaállítása',
+  'Close valve': 'Szelep bezárása',
+  'Open valve to 30%': 'Szelep nyitása 30%-ra',
+  'Enabled': 'Engedélyezve',
+  'Disabled': 'Letiltva',
+  'Auto': 'Automatikus',
+  'Normal': 'Normál',
+  'Turbo': 'Turbó',
+  'Up': 'Fel',
+  'Down': 'Le',
+  'Running': 'Folyamatban',
+  'Completed': 'Kész',
+  'Mon': 'H',
+  'Tue': 'K',
+  'Wed': 'Sze',
+  'Thu': 'Cs',
+  'Fri': 'P',
+  'Sat': 'Szo',
+  'Sun': 'V',
+  'Decrease': 'Csökkentés',
+  'Increase': 'Növelés',
+  'Decrease target': 'Célhőmérséklet csökkentése',
+  'Increase target': 'Célhőmérséklet növelése',
+  'set default': 'alapérték beállítása',
+  'Device has not reported this value. Tap to write the default.': 'Az eszköz még nem jelentette ezt az értéket. Koppints az alapérték kiírásához.',
+  'Duration can be preconfigured here. On the status card it appears only while the matching preset is active.': 'Az időtartam itt előre beállítható. A status kártyán csak a megfelelő preset aktív állapotában jelenik meg.',
+  'Schedule entities have not been discovered for this device.': 'Az időprogram entitásai nem találhatók ehhez az eszközhöz.',
+  'Schedule is not available.': 'Az időprogram nem érhető el.',
+  'The TRV has not reported this schedule yet. Showing the Reset All default; Save day/all writes it to the TRV.': 'A TRV még nem jelentette ezt az időprogramot. Az alapértelmezett érték látható; a Nap mentése vagy az Összes mentése írja ki a TRV-re.',
+  'Unsaved changes': 'Nem mentett módosítások',
+  'Copy to weekdays': 'Másolás hétköznapokra',
+  'Copy to all days': 'Másolás minden napra',
+  'Reload day': 'Nap újratöltése',
+  'Save day': 'Nap mentése',
+  'Save all': 'Összes mentése',
+  'Reset All Settings entity was not discovered.': 'A Minden beállítás visszaállítása entitás nem található.',
+  'This writes the captured vendor defaults for multiple TRV settings.': 'Ez több TRV-beállítást visszaállít a rögzített gyári alapértékekre.',
+  'RESET ALL SETTINGS': 'MINDEN BEÁLLÍTÁS VISSZAÁLLÍTÁSA',
+  'Reset all BEOK TRV-705ZB settings to vendor defaults?': 'Visszaállítod a BEOK TRV-705ZB összes beállítását a gyári alapértékekre?',
+  'Card is not configured.': 'A kártya nincs konfigurálva.',
+  'Entity not found': 'Az entitás nem található',
+  'Schedule must contain exactly 6 periods.': 'Az időprogramnak pontosan 6 időszakot kell tartalmaznia.',
+  'Schedule times must be strictly increasing.': 'Az időprogram időpontjainak szigorúan növekvő sorrendben kell követniük egymást.'
+};
+
 let registryCache = {connection: null, time: 0, promise: null};
 const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
 const norm = (v) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
@@ -237,6 +344,79 @@ class BeokBase extends HTMLElement {
   id(key) { return this._config?.entities?.[key] ?? this._map[key] ?? null; }
   state(key) { const id = this.id(key); return id ? this._hass?.states?.[id] : null; }
   title() { return this._config?.name || this.climate()?.attributes?.friendly_name || this._config?.entity || 'BEOK TRV-705ZB'; }
+
+  language() {
+    const raw =
+      this._hass?.locale?.language ??
+      this._hass?.language ??
+      document.documentElement?.lang ??
+      navigator.language ??
+      'en';
+    return String(raw).toLowerCase().split(/[-_]/)[0] === 'hu' ? 'hu' : 'en';
+  }
+
+  translateText(value) {
+    const text=String(value ?? '');
+    if (this.language() !== 'hu' || !text) return text;
+    if (HU_TEXT[text] != null) return HU_TEXT[text];
+
+    const dayStar=text.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)(\*)$/);
+    if (dayStar) return `${HU_TEXT[dayStar[1]]}${dayStar[2]}`;
+
+    if (text.startsWith('Valve ')) return `Szelep ${text.slice(6)}`;
+    if (text.startsWith('Climate entity not found: ')) return `A climate entitás nem található: ${text.slice(26)}`;
+    if (text.startsWith('Entity discovery failed: ')) return `Az entitások felderítése sikertelen: ${text.slice(25)}`;
+
+    let match=text.match(/^Period (\d+): temperature must be 5\.\.35 °C\.$/);
+    if (match) return `${match[1]}. időszak: a hőmérsékletnek 5 és 35 °C között kell lennie.`;
+
+    match=text.match(/^(.+) has no numeric value$/);
+    if (match) return `${match[1]} nem tartalmaz numerikus értéket`;
+
+    match=text.match(/^(.+) is read-only or unsupported$/);
+    if (match) return `${match[1]} csak olvasható vagy nem támogatott`;
+
+    match=text.match(/^(.+) entity not found$/);
+    if (match) return `${match[1]} entitás nem található`;
+
+    if (text === 'Changing it restarts Vacation with the new duration.') {
+      return 'Módosításkor a Szabadság mód újraindul az új időtartammal.';
+    }
+    if (text === 'Changing it restarts Boost with the new duration.') {
+      return 'Módosításkor a Gyorsfűtés újraindul az új időtartammal.';
+    }
+
+    return text;
+  }
+
+  localizeDom() {
+    if (this.language() !== 'hu' || !this.shadowRoot) return;
+
+    const walker=document.createTreeWalker(this.shadowRoot,NodeFilter.SHOW_TEXT);
+    const nodes=[];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+
+    for (const node of nodes) {
+      const raw=node.nodeValue ?? '';
+      const core=raw.trim();
+      if (!core) continue;
+      const translated=this.translateText(core);
+      if (translated === core) continue;
+      const leading=raw.match(/^\s*/)?.[0] ?? '';
+      const trailing=raw.match(/\s*$/)?.[0] ?? '';
+      node.nodeValue=`${leading}${translated}${trailing}`;
+    }
+
+    this.shadowRoot.querySelectorAll('[title],[aria-label]').forEach((element)=>{
+      for (const attr of ['title','aria-label']) {
+        if (!element.hasAttribute(attr)) continue;
+        const value=element.getAttribute(attr);
+        const translated=this.translateText(value);
+        if (translated !== value) element.setAttribute(attr,translated);
+      }
+    });
+  }
+
 
 
   reconcileNumberDrafts() {
@@ -712,16 +892,18 @@ class BeokCompact extends BeokBase {
 
   render() {
     if (!this.shadowRoot) return;
-    const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; return; }
+    const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; this.localizeDom(); return; }
     this.shadowRoot.innerHTML=`<style>${this.css()}</style><ha-card><div class="card compact-card">${this.headerHtml('BEOK TRV-705ZB · compact')}${this.compactMetrics()}${this.compactPreset()}${this._error?`<div class="error">${esc(this._error)}</div>`:''}</div></ha-card>`;
+    this.localizeDom();
   }
 }
 
 class BeokStatus extends BeokBase {
   render() {
     if (!this.shadowRoot) return;
-    const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; return; }
+    const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; this.localizeDom(); return; }
     this.shadowRoot.innerHTML=`<style>${this.css()}</style><ha-card><div class="card">${this.headerHtml('BEOK TRV-705ZB')}${this.metrics()}${this.targetControl()}${this.presetControl()}${this.durationControl()}${this._error?`<div class="error">${esc(this._error)}</div>`:''}</div></ha-card>`;
+    this.localizeDom();
     this.bindCommon();
   }
 }
@@ -729,7 +911,7 @@ class BeokStatus extends BeokBase {
 class BeokFull extends BeokBase {
   render() {
     if (!this.shadowRoot) return;
-    const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; return; }
+    const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; this.localizeDom(); return; }
     const enhanced=['temporary_mode','critical_low_battery_action','enhanced_child_lock','thrust_mode','valve_calibration'].some((k)=>this.id(k));
     this.shadowRoot.innerHTML=`<style>${this.css()}</style><ha-card><div class="card">
       ${this.headerHtml('BEOK TRV-705ZB · full control')}
@@ -746,6 +928,7 @@ class BeokFull extends BeokBase {
       </div></details>
       ${this._error?`<div class="error">${esc(this._error)}</div>`:''}
     </div></ha-card>`;
+    this.localizeDom();
     this.bindCommon(); this.bindFull();
   }
 
@@ -791,7 +974,8 @@ class BeokFull extends BeokBase {
         const i=Number(e.target.dataset.i);
         this._drafts[this._day][i].time=e.target.value;
         this._dirty[this._day]=true;
-        const label=DAYS.find(([d])=>d===this._day)?.[1] ?? this._day;
+        const rawLabel=DAYS.find(([d])=>d===this._day)?.[1] ?? this._day;
+        const label=this.translateText(rawLabel);
         const tab=r.querySelector(`[data-a=day][data-day=\"${this._day}\"]`);
         if (tab) tab.textContent=`${label}*`;
         const dirty=r.querySelector('[data-schedule-dirty]');
@@ -808,7 +992,7 @@ class BeokFull extends BeokBase {
     r.querySelector('[data-a=reload]')?.addEventListener('click',()=>{this._dirty[this._day]=false;const p=parseSchedule(this.state(`schedule_${this._day}`)?.state);if(p){this._drafts[this._day]=p;this._scheduleFallback[this._day]=false;}else{this._drafts[this._day]=DEFAULT_SCHEDULE.map((x)=>({...x}));this._scheduleFallback[this._day]=true;}this.render();});
     r.querySelector('[data-a=saveday]')?.addEventListener('click',()=>this.saveDay(this._day).catch((e)=>this.fail(e)));
     r.querySelector('[data-a=saveall]')?.addEventListener('click',()=>this.saveAll().catch((e)=>this.fail(e)));
-    r.querySelector('[data-a=reset]')?.addEventListener('click',async()=>{if(!window.confirm('Reset all BEOK TRV-705ZB settings to vendor defaults?'))return;try{const id=this.id('reset_all_settings');await this.setEntity(id,domain(id)==='button'?true:'RESET');}catch(e){this.fail(e);}});
+    r.querySelector('[data-a=reset]')?.addEventListener('click',async()=>{if(!window.confirm(this.translateText('Reset all BEOK TRV-705ZB settings to vendor defaults?')))return;try{const id=this.id('reset_all_settings');await this.setEntity(id,domain(id)==='button'?true:'RESET');}catch(e){this.fail(e);}});
   }
 }
 

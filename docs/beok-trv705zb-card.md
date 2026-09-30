@@ -136,6 +136,13 @@ After replacing the JavaScript file, hard-refresh or reload the Home Assistant f
 
 The three card types are intentionally separate. Home Assistant's normal card/dashboard visibility rules can be used so a wall-tablet user sees only the status card while an administrative user sees the full settings card.
 
+
+## Language
+
+English is the default/fallback UI language. The cards automatically read the Home Assistant frontend language. When the Home Assistant UI language is Hungarian (`hu` or a Hungarian locale such as `hu-HU`), card-owned labels, status text, preset names, buttons, notes, schedule-editor text, tooltips and confirmation prompts are shown in Hungarian.
+
+Entity IDs, Home Assistant service calls, Zigbee2MQTT state values and write payloads are not translated; localization affects display text only. Other UI languages currently fall back to English.
+
 ## Privacy
 
 The distributed card contains no hard-coded device IEEE addresses, Home Assistant entity IDs, user IDs, MQTT topics, IP addresses, credentials, access tokens or other installation-specific secrets.
