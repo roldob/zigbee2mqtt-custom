@@ -1235,7 +1235,7 @@ class BeokBase extends HTMLElement {
 
   targetText() {
     const a=this.climate()?.attributes ?? {};
-    if (a.preset_mode === 'full_open') return 'ON';
+    if (['full_open','off'].includes(a.preset_mode)) return '—';
     const v=fmt(a.temperature);
     return v === '—' ? '—' : `${v} °C`;
   }

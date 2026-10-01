@@ -30,7 +30,7 @@ entity: climate.example_trv
 
 It shows current room temperature, target/Boost countdown, read-only regulation mode (`ON-OFF` or `PID`), heating state, valve position, window state and battery. The current preset is shown by the icon-based preset selector below the metrics, which remains touch-friendly and editable.
 
-Vacation duration is shown only while Vacation is active. During Boost, the normal target is replaced by a local countdown display and target controls are hidden.
+Vacation duration is shown only while Vacation is active. During Boost, the normal target is replaced by a local countdown display and target controls are hidden. When the active preset is `full_open` or `off`, the Target value is shown as `—` because those presets do not have a meaningful target temperature.
 
 ### Status backlight indicators
 
