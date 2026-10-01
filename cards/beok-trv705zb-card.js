@@ -561,11 +561,9 @@ class BeokBase extends HTMLElement {
 
   openHistory(entityId) {
     if (!entityId) return;
-    this.dispatchEvent(new CustomEvent('hass-more-info', {
-      detail: {entityId, view:'history'},
-      bubbles: true,
-      composed: true,
-    }));
+    const path=`/history?entity_id=${encodeURIComponent(entityId)}`;
+    window.history.pushState(null,'',path);
+    window.dispatchEvent(new CustomEvent('location-changed'));
   }
 
   bindHistoryTiles() {
