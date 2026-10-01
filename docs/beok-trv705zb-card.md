@@ -62,6 +62,17 @@ The full card keeps the daily controls visible and places all configuration cont
 - enhanced-variant controls when those Home Assistant entities exist
 - Reset All Settings
 
+
+## History shortcuts
+
+The Room, State and Window metric tiles are interactive on all three card types:
+
+- **Room** opens Home Assistant more-info/history for the TRV climate entity.
+- **State** opens the valve-position entity's more-info/history when that entity is available; otherwise it falls back to the climate entity.
+- **Window** opens the discovered window entity's more-info/history. If no window entity is available, the tile remains non-interactive.
+
+These shortcuts use Home Assistant's native `hass-more-info` dialog and add no external dependency.
+
 ## Entity discovery
 
 Normally only the climate entity is required. The card reads the Home Assistant entity registry, finds the selected climate entity's `device_id`, and automatically discovers related entities belonging to the same device.

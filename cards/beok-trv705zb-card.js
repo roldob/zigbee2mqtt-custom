@@ -144,6 +144,7 @@ const HU_TEXT = {
   'Increase': 'Növelés',
   'Decrease target': 'Célhőmérséklet csökkentése',
   'Increase target': 'Célhőmérséklet növelése',
+  'Show history': 'Előzmények megnyitása',
   'set default': 'alapérték beállítása',
   'Device has not reported this value. Tap to write the default.': 'Az eszköz még nem jelentette ezt az értéket. Koppints az alapérték kiírásához.',
   'Duration can be preconfigured here. On the status card it appears only while the matching preset is active.': 'Az időtartam itt előre beállítható. A status kártyán csak a megfelelő preset aktív állapotában jelenik meg.',
@@ -547,8 +548,38 @@ class BeokBase extends HTMLElement {
     });
   }
 
-  metricHtml(label, value, icon, cls='') {
-    return `<div class="metric ${esc(cls)}"><div class="metric-head"><ha-icon icon="${esc(icon)}"></ha-icon><div class="lab">${esc(label)}</div></div><div class="val">${value === '' ? '&nbsp;' : esc(value)}</div></div>`;
+  metricHtml(label, value, icon, cls='', historyEntityId=null) {
+    const history=historyEntityId
+      ? ` data-history-entity="${esc(historyEntityId)}" class="metric ${esc(cls)} history-link" role="button" tabindex="0" aria-label="Show history" title="Show history"`
+      : ` class="metric ${esc(cls)}"`;
+    return `<div${history}><div class="metric-head"><ha-icon icon="${esc(icon)}"></ha-icon><div class="lab">${esc(label)}</div></div><div class="val">${value === '' ? '&nbsp;' : esc(value)}</div></div>`;
+  }
+
+  historyEntity(key, fallback=null) {
+    return this.id(key) ?? fallback;
+  }
+
+  openMoreInfo(entityId) {
+    if (!entityId) return;
+    this.dispatchEvent(new CustomEvent('hass-more-info', {
+      detail: {entityId},
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  bindHistoryTiles() {
+    const r=this.shadowRoot;
+    if (!r) return;
+    const open=(element)=>this.openMoreInfo(element?.dataset?.historyEntity);
+    r.querySelectorAll('[data-history-entity]').forEach((element)=>{
+      element.addEventListener('click',()=>open(element));
+      element.addEventListener('keydown',(event)=>{
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        open(event.currentTarget);
+      });
+    });
   }
 
   heatingMetricClass(rawState) {
@@ -691,7 +722,7 @@ class BeokBase extends HTMLElement {
   css() { return `
     :host{display:block;position:relative}ha-card{overflow:visible}.card{padding:16px;overflow:visible}
     .header{display:flex;align-items:center;gap:12px;margin-bottom:14px}.header-icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--secondary-background-color);color:var(--primary-color);flex:0 0 auto}.header-icon ha-icon{--mdc-icon-size:25px}.header-text{min-width:0}.title{font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sub{font-size:12px;color:var(--secondary-text-color);margin-top:2px}
-    .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}.metric{--metric-color:var(--primary-color);position:relative;background:var(--secondary-background-color);border-radius:12px;padding:10px 10px 10px 12px;min-width:0;overflow:visible;isolation:isolate}.metric>.metric-head,.metric>.val,.metric>.metric-sub{position:relative;z-index:2;min-width:0}.metric .lab,.metric .val,.metric .metric-sub{overflow:hidden;text-overflow:ellipsis}.metric:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--metric-color)}.metric-head{display:flex;align-items:center;gap:5px;margin-bottom:4px;min-width:0}.metric-head ha-icon{--mdc-icon-size:16px;color:var(--metric-color);flex:0 0 auto}.metric.room{--metric-color:var(--info-color,var(--primary-color))}.metric.target-metric{--metric-color:var(--primary-color)}.metric.preset-metric{--metric-color:var(--accent-color,var(--primary-color))}.metric.state-metric{--metric-color:var(--state-climate-heat-color,var(--warning-color,var(--primary-color)))}.metric.window-metric{--metric-color:var(--success-color,var(--primary-color))}.metric.battery-metric{--metric-color:var(--success-color,var(--primary-color))}.metric.countdown{--metric-color:var(--warning-color,var(--primary-color))}
+    .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}.metric{--metric-color:var(--primary-color);position:relative;background:var(--secondary-background-color);border-radius:12px;padding:10px 10px 10px 12px;min-width:0;overflow:visible;isolation:isolate}.metric>.metric-head,.metric>.val,.metric>.metric-sub{position:relative;z-index:2;min-width:0}.metric .lab,.metric .val,.metric .metric-sub{overflow:hidden;text-overflow:ellipsis}.metric:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--metric-color)}.metric-head{display:flex;align-items:center;gap:5px;margin-bottom:4px;min-width:0}.metric-head ha-icon{--mdc-icon-size:16px;color:var(--metric-color);flex:0 0 auto}.metric.room{--metric-color:var(--info-color,var(--primary-color))}.metric.target-metric{--metric-color:var(--primary-color)}.metric.preset-metric{--metric-color:var(--accent-color,var(--primary-color))}.metric.state-metric{--metric-color:var(--state-climate-heat-color,var(--warning-color,var(--primary-color)))}.metric.window-metric{--metric-color:var(--success-color,var(--primary-color))}.metric.battery-metric{--metric-color:var(--success-color,var(--primary-color))}.metric.countdown{--metric-color:var(--warning-color,var(--primary-color))}.metric.history-link{cursor:pointer;transition:filter .12s ease,transform .12s ease}.metric.history-link:hover{filter:brightness(1.06)}.metric.history-link:active{transform:scale(.985)}.metric.history-link:focus-visible{outline:2px solid var(--primary-color);outline-offset:2px}
     .metric.heating-glow,.metric.battery-warning,.metric.battery-low,.metric.battery-critical,.metric.window-open-glow{background:radial-gradient(ellipse at 50% 48%,rgba(var(--glow-rgb),.22) 0%,rgba(var(--glow-rgb),.11) 48%,rgba(var(--glow-rgb),.025) 78%,transparent 100%),color-mix(in srgb,var(--secondary-background-color) 78%,transparent);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);border:1px solid rgba(var(--glow-rgb),.08)}
     .metric.heating-glow:after,.metric.battery-warning:after,.metric.battery-low:after,.metric.battery-critical:after,.metric.window-open-glow:after{content:'';position:absolute;z-index:0;pointer-events:none;inset:-8px;border-radius:inherit;background:radial-gradient(ellipse at 50% 50%,rgba(var(--glow-rgb),.42) 0%,rgba(var(--glow-rgb),.24) 40%,rgba(var(--glow-rgb),.10) 64%,transparent 82%);filter:blur(10px);opacity:.68;transform:scale(.97)}
     .metric.heating-glow{--metric-color:#ef5350;--glow-rgb:239,83,80}.metric.battery-warning{--metric-color:#fbc02d;--glow-rgb:251,192,45}.metric.battery-low{--metric-color:#fb8c00;--glow-rgb:251,140,0}.metric.battery-critical{--metric-color:#e53935;--glow-rgb:229,57,53}.metric.window-open-glow{--metric-color:#e53935;--glow-rgb:229,57,53}
@@ -739,15 +770,16 @@ class BeokBase extends HTMLElement {
     const isBoost=presetRaw==='boost';
 
     let html='<div class="metrics">';
-    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room');
+    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room',this._config.entity);
     if (isBoost) {
       html+=`<div class="metric target-metric countdown"><div class="metric-head"><ha-icon icon="mdi:fire-clock"></ha-icon><div class="lab">BOOST</div></div><div class="val" data-boost-countdown>${esc(this.boostCountdownText())}</div></div>`;
     } else {
       html+=this.metricHtml('Target',this.targetText(),'mdi:target','target-metric');
     }
     html+=this.metricHtml('Regulation',regulation,'mdi:tune-variant','regulation-metric');
-    html+=`<div class="metric state-metric ${stateGlow}"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
-    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`);
+    const stateHistory=this.historyEntity('position',this._config.entity);
+    html+=`<div class="metric state-metric ${stateGlow} history-link" data-history-entity="${esc(stateHistory)}" role="button" tabindex="0" aria-label="Show history" title="Show history"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
+    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`,this.historyEntity('window'));
     html+=this.metricHtml('Battery',batteryValue,'mdi:battery',`battery-metric ${batteryGlow}`);
     if (countdown && !isBoost) html+=this.metricHtml(countdown.label,countdown.value,countdown.icon,countdown.cls);
     html+='</div>';
@@ -886,15 +918,16 @@ class BeokCompact extends BeokBase {
     const isBoost=a.preset_mode==='boost';
 
     let html='<div class="metrics">';
-    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room');
+    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room',this._config.entity);
     if (isBoost) {
       html+=`<div class="metric target-metric countdown"><div class="metric-head"><ha-icon icon="mdi:fire-clock"></ha-icon><div class="lab">BOOST</div></div><div class="val" data-boost-countdown>${esc(this.boostCountdownText())}</div></div>`;
     } else {
       html+=this.metricHtml('Target',this.targetText(),'mdi:target','target-metric');
     }
     html+=this.metricHtml('Regulation',regulation,'mdi:tune-variant','regulation-metric');
-    html+=`<div class="metric state-metric ${stateGlow}"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
-    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`);
+    const stateHistory=this.historyEntity('position',this._config.entity);
+    html+=`<div class="metric state-metric ${stateGlow} history-link" data-history-entity="${esc(stateHistory)}" role="button" tabindex="0" aria-label="Show history" title="Show history"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
+    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`,this.historyEntity('window'));
     html+=this.metricHtml('Battery',batteryValue,'mdi:battery',`battery-metric ${batteryGlow}`);
     html+='</div>';
     return html;
@@ -911,6 +944,7 @@ class BeokCompact extends BeokBase {
     const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; this.localizeDom(); return; }
     this.shadowRoot.innerHTML=`<style>${this.css()}</style><ha-card><div class="card compact-card">${this.headerHtml('BEOK TRV-705ZB · compact')}${this.compactMetrics()}${this.compactPreset()}${this._error?`<div class="error">${esc(this._error)}</div>`:''}</div></ha-card>`;
     this.localizeDom();
+    this.bindHistoryTiles();
   }
 }
 
@@ -920,6 +954,7 @@ class BeokStatus extends BeokBase {
     const early=this.early(); if (early) { this.shadowRoot.innerHTML=`<style>${this.css()}</style>${early}`; this.localizeDom(); return; }
     this.shadowRoot.innerHTML=`<style>${this.css()}</style><ha-card><div class="card">${this.headerHtml('BEOK TRV-705ZB')}${this.metrics()}${this.targetControl()}${this.presetControl()}${this.durationControl()}${this._error?`<div class="error">${esc(this._error)}</div>`:''}</div></ha-card>`;
     this.localizeDom();
+    this.bindHistoryTiles();
     this.bindCommon();
   }
 }
@@ -945,6 +980,7 @@ class BeokFull extends BeokBase {
       ${this._error?`<div class="error">${esc(this._error)}</div>`:''}
     </div></ha-card>`;
     this.localizeDom();
+    this.bindHistoryTiles();
     this.bindCommon(); this.bindFull();
   }
 
