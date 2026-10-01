@@ -71,7 +71,7 @@ The Room, State and Window metric tiles are interactive on all three card types 
 - **State** shows the valve-position entity's native history graph when that entity is available; otherwise it falls back to the climate entity.
 - **Window** shows the discovered window entity's native history graph. If no window entity is available, the tile remains non-interactive.
 
-The popup creates Home Assistant's built-in `history-graph` Lovelace card through the supported `window.loadCardHelpers()` interface. Because `history-graph` is lazy-loaded, the card explicitly waits for the `hui-history-graph-card` custom element to be registered before assigning `hass` and mounting the live instance. The embedded card has no title, so it does not expose the History-panel navigation link. The popup has only a close button, can also be dismissed by clicking the backdrop or pressing Escape, does not expose normal more-info navigation, and does not switch to the History panel.
+The popup fetches the selected entity's previous 24 hours directly through Home Assistant's `history/history_during_period` WebSocket API and renders a small read-only SVG graph locally. Room history uses the climate entity's `current_temperature` attribute, State uses valve position when available (otherwise heating/idle state), and Window uses an open/closed step graph. This avoids Home Assistant's more-info and Lovelace history-card navigation/lifecycle entirely. The popup has only a close button and can also be dismissed by clicking the backdrop or pressing Escape.
 
 ## Entity discovery
 

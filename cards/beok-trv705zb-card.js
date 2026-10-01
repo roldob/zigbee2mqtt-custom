@@ -148,6 +148,17 @@ const HU_TEXT = {
   'History': 'Előzmények',
   'Close': 'Bezárás',
   'History is not available.': 'Az előzmények nem érhetők el.',
+  'Loading history…': 'Előzmények betöltése…',
+  'No history data for the last 24 hours.': 'Nincs előzményadat az elmúlt 24 órából.',
+  'Last 24 hours': 'Elmúlt 24 óra',
+  'Temperature': 'Hőmérséklet',
+  'Valve position': 'Szelepállás',
+  'Window state': 'Ablak állapota',
+  'Heating state': 'Fűtési állapot',
+  'Open': 'Nyitva',
+  'Closed': 'Zárva',
+  'Heating': 'Fűtés',
+  'Idle': 'Inaktív',
   'set default': 'alapérték beállítása',
   'Device has not reported this value. Tap to write the default.': 'Az eszköz még nem jelentette ezt az értéket. Koppints az alapérték kiírásához.',
   'Duration can be preconfigured here. On the status card it appears only while the matching preset is active.': 'Az időtartam itt előre beállítható. A status kártyán csak a megfelelő preset aktív állapotában jelenik meg.',
@@ -343,7 +354,6 @@ class BeokBase extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    if (this._historyElement) this._historyElement.hass = hass;
     this.reconcileNumberDrafts();
     if (this._config && !this._discovering && (!Object.keys(this._map).length || Date.now()-this._lastDiscover > 60000)) this.discover();
     this.syncDrafts(false); this.render();
@@ -556,9 +566,9 @@ class BeokBase extends HTMLElement {
     });
   }
 
-  metricHtml(label, value, icon, cls='', historyEntityId=null) {
+  metricHtml(label, value, icon, cls='', historyEntityId=null, historyKind=null) {
     const history=historyEntityId
-      ? ` data-history-entity="${esc(historyEntityId)}" class="metric ${esc(cls)} history-link" role="button" tabindex="0" aria-label="Show history" title="Show history"`
+      ? ` data-history-entity="${esc(historyEntityId)}"${historyKind?` data-history-kind="${esc(historyKind)}"`:''} class="metric ${esc(cls)} history-link" role="button" tabindex="0" aria-label="Show history" title="Show history"`
       : ` class="metric ${esc(cls)}"`;
     return `<div${history}><div class="metric-head"><ha-icon icon="${esc(icon)}"></ha-icon><div class="lab">${esc(label)}</div></div><div class="val">${value === '' ? '&nbsp;' : esc(value)}</div></div>`;
   }
@@ -567,7 +577,171 @@ class BeokBase extends HTMLElement {
     return this.id(key) ?? fallback;
   }
 
-  async openHistory(entityId) {
+  async fetchHistory(entityId) {
+    const end=new Date();
+    const start=new Date(end.getTime()-24*60*60*1000);
+    const result=await this._hass.callWS({
+      type:'history/history_during_period',
+      start_time:start.toISOString(),
+      end_time:end.toISOString(),
+      entity_ids:[entityId],
+      include_start_time_state:true,
+      significant_changes_only:false,
+      minimal_response:false,
+      no_attributes:false,
+    });
+    return {
+      start:start.getTime(),
+      end:end.getTime(),
+      states:Array.isArray(result?.[entityId])?result[entityId]:[],
+    };
+  }
+
+  historySeries(entityId,kind,states) {
+    const points=[];
+    const stateObj=this._hass?.states?.[entityId];
+    let unit=stateObj?.attributes?.unit_of_measurement ?? '';
+    let discrete=null;
+    let title='';
+
+    const push=(state,value)=>{
+      const time=Number(state?.lu ?? state?.lc)*1000;
+      if (!Number.isFinite(time) || !Number.isFinite(value)) return;
+      if (points.length && points[points.length-1].time===time) points[points.length-1]={time,value};
+      else points.push({time,value});
+    };
+
+    if (kind==='room') {
+      title=this.translateText('Temperature');
+      unit='°C';
+      for (const state of states) push(state,Number(state?.a?.current_temperature));
+    } else if (kind==='position') {
+      title=this.translateText('Valve position');
+      unit='%';
+      for (const state of states) push(state,Number(state?.s));
+    } else if (kind==='window') {
+      title=this.translateText('Window state');
+      unit='';
+      discrete={
+        low:this.translateText('Closed'),
+        high:this.translateText('Open'),
+      };
+      for (const state of states) {
+        const value=String(state?.s ?? '').trim().toLowerCase();
+        if (['open','on','true'].includes(value)) push(state,1);
+        else if (['close','closed','off','false'].includes(value)) push(state,0);
+      }
+    } else if (kind==='state') {
+      title=this.translateText('Heating state');
+      unit='';
+      discrete={
+        low:this.translateText('Idle'),
+        high:this.translateText('Heating'),
+      };
+      for (const state of states) {
+        const value=String(state?.a?.hvac_action ?? state?.s ?? '').trim().toLowerCase();
+        if (['heating','heat','on'].includes(value)) push(state,1);
+        else if (['idle','off'].includes(value)) push(state,0);
+      }
+    } else {
+      title=stateObj?.attributes?.friendly_name ?? entityId;
+      for (const state of states) push(state,Number(state?.s));
+    }
+
+    points.sort((a,b)=>a.time-b.time);
+    return {points,unit,discrete,title};
+  }
+
+  historyChartHtml(entityId,kind,states,startMs,endMs) {
+    const series=this.historySeries(entityId,kind,states);
+    const points=series.points;
+    if (!points.length) {
+      return `<div class="beok-trv-history-unavailable">${esc(this.translateText('No history data for the last 24 hours.'))}</div>`;
+    }
+
+    const width=720,height=300,left=58,right=16,top=18,bottom=42;
+    const plotW=width-left-right,plotH=height-top-bottom;
+    const x=(time)=>left+Math.max(0,Math.min(1,(time-startMs)/(endMs-startMs)))*plotW;
+    let min,max;
+
+    if (series.discrete) {
+      min=0; max=1;
+    } else {
+      const values=points.map((point)=>point.value);
+      min=Math.min(...values); max=Math.max(...values);
+      if (kind==='position') {
+        min=0; max=100;
+      } else if (min===max) {
+        const pad=Math.max(0.5,Math.abs(min)*0.03);
+        min-=pad; max+=pad;
+      } else {
+        const pad=(max-min)*0.12;
+        min-=pad; max+=pad;
+      }
+    }
+
+    const y=(value)=>top+(max-value)/(max-min)*plotH;
+    const grid=[];
+    const yLabels=[];
+
+    if (series.discrete) {
+      for (const value of [0,1]) {
+        const yy=y(value);
+        grid.push(`<line x1="${left}" y1="${yy}" x2="${width-right}" y2="${yy}" />`);
+        yLabels.push(`<text x="${left-8}" y="${yy+4}" text-anchor="end">${esc(value?series.discrete.high:series.discrete.low)}</text>`);
+      }
+    } else {
+      for (let i=0;i<5;i++) {
+        const value=max-(max-min)*(i/4);
+        const yy=top+plotH*(i/4);
+        grid.push(`<line x1="${left}" y1="${yy}" x2="${width-right}" y2="${yy}" />`);
+        const decimals=Math.abs(max-min)<5?1:0;
+        yLabels.push(`<text x="${left-8}" y="${yy+4}" text-anchor="end">${esc(value.toFixed(decimals))}</text>`);
+      }
+    }
+
+    const timeFormat=new Intl.DateTimeFormat(this.language()==='hu'?'hu-HU':'en',{hour:'2-digit',minute:'2-digit'});
+    const xLabels=[];
+    const vertical=[];
+    for (let i=0;i<5;i++) {
+      const ratio=i/4;
+      const xx=left+plotW*ratio;
+      const time=startMs+(endMs-startMs)*ratio;
+      vertical.push(`<line x1="${xx}" y1="${top}" x2="${xx}" y2="${height-bottom}" />`);
+      xLabels.push(`<text x="${xx}" y="${height-14}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${esc(timeFormat.format(new Date(time)))}</text>`);
+    }
+
+    let path='';
+    if (series.discrete) {
+      points.forEach((point,index)=>{
+        const xx=x(point.time),yy=y(point.value);
+        if (index===0) path+=`M ${xx.toFixed(1)} ${yy.toFixed(1)}`;
+        else path+=` H ${xx.toFixed(1)} V ${yy.toFixed(1)}`;
+      });
+      path+=` H ${x(endMs).toFixed(1)}`;
+    } else {
+      path=points.map((point,index)=>`${index?'L':'M'} ${x(point.time).toFixed(1)} ${y(point.value).toFixed(1)}`).join(' ');
+    }
+
+    const last=points[points.length-1];
+    const current=series.discrete
+      ? (last.value?series.discrete.high:series.discrete.low)
+      : `${fmt(last.value)}${series.unit?` ${series.unit}`:''}`;
+
+    return `
+      <div class="beok-trv-history-summary">
+        <div><strong>${esc(series.title)}</strong></div>
+        <div>${esc(current)}</div>
+      </div>
+      <svg class="beok-trv-history-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(series.title)}">
+        <g class="beok-trv-history-grid">${grid.join('')}${vertical.join('')}</g>
+        <g class="beok-trv-history-labels">${yLabels.join('')}${xLabels.join('')}</g>
+        <path class="beok-trv-history-line" d="${path}"></path>
+      </svg>
+    `;
+  }
+
+  async openHistory(entityId,kind='value') {
     if (!entityId || !this._hass) return;
 
     this.closeHistory();
@@ -614,11 +788,22 @@ class BeokBase extends HTMLElement {
         }
         .beok-trv-history-close:hover{background:rgba(var(--rgb-primary-text-color,0,0,0),.08)}
         .beok-trv-history-body{
-          padding:8px 16px 18px;overflow:auto;min-height:320px;
+          padding:12px 16px 18px;overflow:auto;min-height:320px;
         }
-        .beok-trv-history-body hui-history-graph-card{display:block;min-height:300px}
-        .beok-trv-history-unavailable{
-          padding:32px 8px;text-align:center;color:var(--secondary-text-color);
+        .beok-trv-history-loading,.beok-trv-history-unavailable{
+          min-height:280px;display:grid;place-items:center;
+          padding:24px;text-align:center;color:var(--secondary-text-color);
+        }
+        .beok-trv-history-summary{
+          display:flex;justify-content:space-between;align-items:center;gap:12px;
+          margin:2px 4px 8px;font-size:14px;
+        }
+        .beok-trv-history-chart{display:block;width:100%;height:auto;min-height:280px}
+        .beok-trv-history-grid line{stroke:var(--divider-color);stroke-width:1}
+        .beok-trv-history-labels text{fill:var(--secondary-text-color);font-size:11px}
+        .beok-trv-history-line{
+          fill:none;stroke:var(--primary-color);stroke-width:3;
+          stroke-linecap:round;stroke-linejoin:round;
         }
         @media(max-width:600px){
           .beok-trv-history-overlay{padding:8px}
@@ -626,18 +811,19 @@ class BeokBase extends HTMLElement {
             width:calc(100vw - 16px);
             max-height:calc(100dvh - 16px);
           }
-          .beok-trv-history-body{padding:6px 10px 14px}
+          .beok-trv-history-body{padding:8px 6px 12px}
+          .beok-trv-history-chart{min-height:240px}
         }
       </style>
       <div class="beok-trv-history-popup" role="dialog" aria-modal="true" aria-label="${esc(this.translateText('History'))}">
         <div class="beok-trv-history-header">
           <div class="beok-trv-history-title">
             <div class="beok-trv-history-title-main">${esc(entityName)}</div>
-            <div class="beok-trv-history-title-sub">${esc(this.translateText('History'))}</div>
+            <div class="beok-trv-history-title-sub">${esc(this.translateText('Last 24 hours'))}</div>
           </div>
           <button class="beok-trv-history-close" type="button" aria-label="${esc(this.translateText('Close'))}" title="${esc(this.translateText('Close'))}">×</button>
         </div>
-        <div class="beok-trv-history-body"></div>
+        <div class="beok-trv-history-body"><div class="beok-trv-history-loading">${esc(this.translateText('Loading history…'))}</div></div>
       </div>
     `;
 
@@ -647,48 +833,6 @@ class BeokBase extends HTMLElement {
       if (event.target === overlay) close();
     });
 
-    const body=overlay.querySelector('.beok-trv-history-body');
-    if (body) {
-      try {
-        if (typeof window.loadCardHelpers !== 'function') throw new Error('Home Assistant card helpers are not available');
-        const helpers=await window.loadCardHelpers();
-        const config={
-          type:'history-graph',
-          entities:[entityId],
-          hours_to_show:24,
-          show_names:false,
-        };
-
-        // history-graph is lazy-loaded. Trigger its import first, then wait for
-        // the real custom element before creating the instance that receives hass.
-        if (!customElements.get('hui-history-graph-card')) {
-          helpers.createCardElement(config);
-          const ready=await Promise.race([
-            customElements.whenDefined('hui-history-graph-card').then(()=>true),
-            new Promise((resolve)=>window.setTimeout(()=>resolve(false),3000)),
-          ]);
-          if (!ready) throw new Error('History graph card did not load');
-        }
-
-        const historyElement=helpers.createCardElement(config);
-        historyElement.style.display='block';
-        historyElement.style.minHeight='300px';
-        historyElement.hass=this._hass;
-        body.replaceChildren(historyElement);
-        this._historyElement=historyElement;
-
-        if (historyElement.updateComplete) {
-          await Promise.race([
-            historyElement.updateComplete,
-            new Promise((resolve)=>window.setTimeout(resolve,1000)),
-          ]);
-        }
-      } catch (error) {
-        body.innerHTML=`<div class="beok-trv-history-unavailable">${esc(this.translateText('History is not available.'))}</div>`;
-        console.warn('BEOK TRV history popup:',error);
-      }
-    }
-
     this._historyKeyHandler=(event)=>{
       if (event.key === 'Escape') close();
     };
@@ -696,6 +840,17 @@ class BeokBase extends HTMLElement {
     document.body.appendChild(overlay);
     this._historyOverlay=overlay;
     overlay.querySelector('.beok-trv-history-close')?.focus();
+
+    const body=overlay.querySelector('.beok-trv-history-body');
+    try {
+      const history=await this.fetchHistory(entityId);
+      if (this._historyOverlay !== overlay || !body) return;
+      body.innerHTML=this.historyChartHtml(entityId,kind,history.states,history.start,history.end);
+    } catch (error) {
+      if (this._historyOverlay !== overlay || !body) return;
+      body.innerHTML=`<div class="beok-trv-history-unavailable">${esc(this.translateText('History is not available.'))}</div>`;
+      console.warn('BEOK TRV history popup:',error);
+    }
   }
 
   closeHistory() {
@@ -713,7 +868,7 @@ class BeokBase extends HTMLElement {
   bindHistoryTiles() {
     const r=this.shadowRoot;
     if (!r) return;
-    const open=(element)=>this.openHistory(element?.dataset?.historyEntity);
+    const open=(element)=>this.openHistory(element?.dataset?.historyEntity,element?.dataset?.historyKind ?? 'value');
     r.querySelectorAll('[data-history-entity]').forEach((element)=>{
       element.addEventListener('click',()=>open(element));
       element.addEventListener('keydown',(event)=>{
@@ -912,7 +1067,7 @@ class BeokBase extends HTMLElement {
     const isBoost=presetRaw==='boost';
 
     let html='<div class="metrics">';
-    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room',this._config.entity);
+    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room',this._config.entity,'room');
     if (isBoost) {
       html+=`<div class="metric target-metric countdown"><div class="metric-head"><ha-icon icon="mdi:fire-clock"></ha-icon><div class="lab">BOOST</div></div><div class="val" data-boost-countdown>${esc(this.boostCountdownText())}</div></div>`;
     } else {
@@ -920,8 +1075,9 @@ class BeokBase extends HTMLElement {
     }
     html+=this.metricHtml('Regulation',regulation,'mdi:tune-variant','regulation-metric');
     const stateHistory=this.historyEntity('position',this._config.entity);
-    html+=`<div class="metric state-metric ${stateGlow} history-link" data-history-entity="${esc(stateHistory)}" role="button" tabindex="0" aria-label="Show history" title="Show history"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
-    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`,this.historyEntity('window'));
+    const stateHistoryKind=this.id('position')?'position':'state';
+    html+=`<div class="metric state-metric ${stateGlow} history-link" data-history-entity="${esc(stateHistory)}" data-history-kind="${esc(stateHistoryKind)}" role="button" tabindex="0" aria-label="Show history" title="Show history"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
+    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`,this.historyEntity('window'),'window');
     html+=this.metricHtml('Battery',batteryValue,'mdi:battery',`battery-metric ${batteryGlow}`);
     if (countdown && !isBoost) html+=this.metricHtml(countdown.label,countdown.value,countdown.icon,countdown.cls);
     html+='</div>';
@@ -1060,7 +1216,7 @@ class BeokCompact extends BeokBase {
     const isBoost=a.preset_mode==='boost';
 
     let html='<div class="metrics">';
-    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room',this._config.entity);
+    html+=this.metricHtml('Room',`${fmt(a.current_temperature)} °C`,'mdi:home-thermometer-outline','room',this._config.entity,'room');
     if (isBoost) {
       html+=`<div class="metric target-metric countdown"><div class="metric-head"><ha-icon icon="mdi:fire-clock"></ha-icon><div class="lab">BOOST</div></div><div class="val" data-boost-countdown>${esc(this.boostCountdownText())}</div></div>`;
     } else {
@@ -1068,8 +1224,9 @@ class BeokCompact extends BeokBase {
     }
     html+=this.metricHtml('Regulation',regulation,'mdi:tune-variant','regulation-metric');
     const stateHistory=this.historyEntity('position',this._config.entity);
-    html+=`<div class="metric state-metric ${stateGlow} history-link" data-history-entity="${esc(stateHistory)}" role="button" tabindex="0" aria-label="Show history" title="Show history"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
-    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`,this.historyEntity('window'));
+    const stateHistoryKind=this.id('position')?'position':'state';
+    html+=`<div class="metric state-metric ${stateGlow} history-link" data-history-entity="${esc(stateHistory)}" data-history-kind="${esc(stateHistoryKind)}" role="button" tabindex="0" aria-label="Show history" title="Show history"><div class="metric-head"><ha-icon icon="mdi:radiator"></ha-icon><div class="lab">STATE</div></div><div class="val state-main">${esc(stateMain)}</div>${stateSub?`<div class="metric-sub">${esc(stateSub)}</div>`:''}</div>`;
+    html+=this.metricHtml('Window',w ?? '—',w==='OPEN'?'mdi:window-open-variant':'mdi:window-closed-variant',`window-metric ${w==='OPEN'?'window-open-glow':''}`,this.historyEntity('window'),'window');
     html+=this.metricHtml('Battery',batteryValue,'mdi:battery',`battery-metric ${batteryGlow}`);
     html+='</div>';
     return html;
