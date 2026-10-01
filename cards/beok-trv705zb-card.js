@@ -614,9 +614,9 @@ class BeokBase extends HTMLElement {
         }
         .beok-trv-history-close:hover{background:rgba(var(--rgb-primary-text-color,0,0,0),.08)}
         .beok-trv-history-body{
-          padding:8px 16px 18px;overflow:auto;min-height:220px;
+          padding:8px 16px 18px;overflow:auto;min-height:320px;
         }
-        .beok-trv-history-body hui-history-graph-card{display:block}
+        .beok-trv-history-body hui-history-graph-card{display:block;min-height:300px}
         .beok-trv-history-unavailable{
           padding:32px 8px;text-align:center;color:var(--secondary-text-color);
         }
@@ -652,15 +652,37 @@ class BeokBase extends HTMLElement {
       try {
         if (typeof window.loadCardHelpers !== 'function') throw new Error('Home Assistant card helpers are not available');
         const helpers=await window.loadCardHelpers();
-        const historyElement=helpers.createCardElement({
+        const config={
           type:'history-graph',
           entities:[entityId],
           hours_to_show:24,
           show_names:false,
-        });
-        body.replaceChildren(historyElement);
+        };
+
+        // history-graph is lazy-loaded. Trigger its import first, then wait for
+        // the real custom element before creating the instance that receives hass.
+        if (!customElements.get('hui-history-graph-card')) {
+          helpers.createCardElement(config);
+          const ready=await Promise.race([
+            customElements.whenDefined('hui-history-graph-card').then(()=>true),
+            new Promise((resolve)=>window.setTimeout(()=>resolve(false),3000)),
+          ]);
+          if (!ready) throw new Error('History graph card did not load');
+        }
+
+        const historyElement=helpers.createCardElement(config);
+        historyElement.style.display='block';
+        historyElement.style.minHeight='300px';
         historyElement.hass=this._hass;
+        body.replaceChildren(historyElement);
         this._historyElement=historyElement;
+
+        if (historyElement.updateComplete) {
+          await Promise.race([
+            historyElement.updateComplete,
+            new Promise((resolve)=>window.setTimeout(resolve,1000)),
+          ]);
+        }
       } catch (error) {
         body.innerHTML=`<div class="beok-trv-history-unavailable">${esc(this.translateText('History is not available.'))}</div>`;
         console.warn('BEOK TRV history popup:',error);
