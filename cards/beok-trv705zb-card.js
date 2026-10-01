@@ -572,16 +572,6 @@ class BeokBase extends HTMLElement {
 
     this.closeHistory();
 
-    // Home Assistant preloads the more-info module after the main UI renders;
-    // that module defines the read-only history graph component used here.
-    let historyReady=true;
-    if (!customElements.get('ha-more-info-history')) {
-      historyReady=await Promise.race([
-        customElements.whenDefined('ha-more-info-history').then(()=>true),
-        new Promise((resolve)=>window.setTimeout(()=>resolve(false),2000)),
-      ]);
-    }
-
     const stateObj=this._hass.states?.[entityId];
     const entityName=stateObj?.attributes?.friendly_name ?? entityId;
     const overlay=document.createElement('div');
@@ -626,7 +616,7 @@ class BeokBase extends HTMLElement {
         .beok-trv-history-body{
           padding:8px 16px 18px;overflow:auto;min-height:220px;
         }
-        .beok-trv-history-body ha-more-info-history{display:block}
+        .beok-trv-history-body hui-history-graph-card{display:block}
         .beok-trv-history-unavailable{
           padding:32px 8px;text-align:center;color:var(--secondary-text-color);
         }
@@ -658,14 +648,23 @@ class BeokBase extends HTMLElement {
     });
 
     const body=overlay.querySelector('.beok-trv-history-body');
-    if (historyReady && body) {
-      const historyElement=document.createElement('ha-more-info-history');
-      historyElement.hass=this._hass;
-      historyElement.entityId=entityId;
-      body.appendChild(historyElement);
-      this._historyElement=historyElement;
-    } else if (body) {
-      body.innerHTML=`<div class="beok-trv-history-unavailable">${esc(this.translateText('History is not available.'))}</div>`;
+    if (body) {
+      try {
+        if (typeof window.loadCardHelpers !== 'function') throw new Error('Home Assistant card helpers are not available');
+        const helpers=await window.loadCardHelpers();
+        const historyElement=helpers.createCardElement({
+          type:'history-graph',
+          entities:[entityId],
+          hours_to_show:24,
+          show_names:false,
+        });
+        body.replaceChildren(historyElement);
+        historyElement.hass=this._hass;
+        this._historyElement=historyElement;
+      } catch (error) {
+        body.innerHTML=`<div class="beok-trv-history-unavailable">${esc(this.translateText('History is not available.'))}</div>`;
+        console.warn('BEOK TRV history popup:',error);
+      }
     }
 
     this._historyKeyHandler=(event)=>{
