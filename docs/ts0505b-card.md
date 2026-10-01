@@ -2,7 +2,7 @@
 
 Dependency-free Lovelace custom cards for Home Assistant lights exposed by the TS0505B converter and, when configured, its group extension.
 
-The source is [`cards/ts0505b-card.js`](../cards/ts0505b-card.js). It registers two card types:
+The source is [`homeassistant/www/ts0505b-card.js`](../homeassistant/www/ts0505b-card.js). It registers two card types:
 
 - `custom:ts0505b-status-card`
 - `custom:ts0505b-full-card`
@@ -41,7 +41,7 @@ These sections depend on the converter or group extension exposing the matching 
 
 ## Installation
 
-Copy `cards/ts0505b-card.js` from this repository to Home Assistant's `www` directory, for example:
+Copy `homeassistant/www/ts0505b-card.js` from this repository to Home Assistant's `www` directory, for example:
 
 ```text
 /config/www/ts0505b-card.js

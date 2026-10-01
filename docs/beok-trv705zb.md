@@ -17,7 +17,7 @@ Support is claimed for this exact fingerprint:
 | Vendor | `BEOK` |
 | Converter model | `TRV-705ZB` |
 
-The converter file is [`converters/beok-trv705zb.mjs`](../converters/beok-trv705zb.mjs).
+The converter file is [`zigbee2mqtt/external_converters/beok-trv705zb.mjs`](../zigbee2mqtt/external_converters/beok-trv705zb.mjs).
 
 Other devices reporting `TS0601` are not covered by this support claim.
 
@@ -230,7 +230,7 @@ Vacation start was captured as one Tuya request containing both `DP117=<days>` a
 
 ## Installation
 
-1. Copy `converters/beok-trv705zb.mjs` into the `external_converters` directory beside the Zigbee2MQTT data/configuration files.
+1. Copy `zigbee2mqtt/external_converters/beok-trv705zb.mjs` into the `external_converters` directory beside the Zigbee2MQTT data/configuration files.
 2. Ensure external JavaScript converters are enabled for the installation.
 3. Restart Zigbee2MQTT.
 4. Check the Zigbee2MQTT log to confirm that the external converter was loaded.
@@ -238,7 +238,7 @@ Vacation start was captured as one Tuya request containing both `DP117=<days>` a
 
 For Home Assistant OS with the Zigbee2MQTT app/add-on and the usual data path, the destination is typically:
 
-`/config/zigbee2mqtt/external_converters/beok-trv705zb.mjs`
+`/config/zigbee2mqtt/external_zigbee2mqtt/external_converters/beok-trv705zb.mjs`
 
 Consult the [official Zigbee2MQTT external converter documentation](https://www.zigbee2mqtt.io/advanced/more/external_converters.html) if your installation uses a different data-directory layout.
 
@@ -264,7 +264,7 @@ The implementation has been validated against both observed physical variants. F
 A reusable Home Assistant UI is available for this converter:
 
 - [BEOK TRV-705ZB Home Assistant cards](beok-trv705zb-card.md)
-- JavaScript: [`cards/beok-trv705zb-card.js`](../cards/beok-trv705zb-card.js)
+- JavaScript: [`homeassistant/www/beok-trv705zb-card.js`](../homeassistant/www/beok-trv705zb-card.js)
 
 Three card types are provided:
 

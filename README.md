@@ -14,3 +14,13 @@ Available converters and extensions:
 **Support is limited to the exact fingerprints documented for device-specific converters.** A matching model name alone does not establish compatibility. MultiControl is intentionally generic, but non-BSEED compatibility has not been hardware-validated.
 
 Installation-specific configuration files are intentionally excluded. Follow the documentation to configure your own installation and keep private configuration out of public distribution.
+
+## Repository layout
+
+The distributable files mirror the Home Assistant installation layout:
+
+- `homeassistant/www/` → `/config/www/`
+- `zigbee2mqtt/external_converters/` → `/config/zigbee2mqtt/external_converters/`
+- `zigbee2mqtt/external_extensions/` → `/config/zigbee2mqtt/external_extensions/`
+
+The `docs/` directory contains documentation only and is not copied into the Home Assistant configuration tree.

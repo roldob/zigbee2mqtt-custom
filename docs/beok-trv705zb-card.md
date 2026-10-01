@@ -2,7 +2,7 @@
 
 Dependency-free Lovelace custom cards for the BEOK TRV-705ZB Zigbee2MQTT converter.
 
-The implementation is in [`cards/beok-trv705zb-card.js`](../cards/beok-trv705zb-card.js) and registers three card types:
+The implementation is in [`homeassistant/www/beok-trv705zb-card.js`](../homeassistant/www/beok-trv705zb-card.js) and registers three card types:
 
 - `custom:beok-trv705zb-compact-card`
 - `custom:beok-trv705zb-status-card`
@@ -118,7 +118,7 @@ This applies to values such as antifrost temperature, comfort/eco temperatures, 
 Copy:
 
 ```text
-cards/beok-trv705zb-card.js
+homeassistant/www/beok-trv705zb-card.js
 ```
 
 to Home Assistant, for example:

@@ -13,7 +13,7 @@ For a Home Assistant add-on whose Zigbee2MQTT data directory is `/config/zigbee2
 - `/config/zigbee2mqtt/external_extensions/zigbee2mqtt-multicontrol.mjs`
 - `/config/zigbee2mqtt/external_extensions/zigbee2mqtt-multicontrol.config.json`
 
-For other installations, use `<Zigbee2MQTT data directory>/external_extensions/`. Copy the extension there and copy `extensions/zigbee2mqtt-multicontrol.config.example.json` beside it under the real configuration filename above. Edit that copy with your device IEEE addresses and exact Zigbee2MQTT friendly names. Configuration is resolved relative to `import.meta.url`, independent of the process working directory.
+For other installations, use `<Zigbee2MQTT data directory>/external_extensions/`. Copy the extension there and copy `zigbee2mqtt/external_extensions/zigbee2mqtt-multicontrol.config.example.json` beside it under the real configuration filename above. Edit that copy with your device IEEE addresses and exact Zigbee2MQTT friendly names. Configuration is resolved relative to `import.meta.url`, independent of the process working directory.
 
 Do not run another synchronization extension for the same devices concurrently. Plan any migration from an existing extension before enabling this one. Restart Zigbee2MQTT after installation or configuration changes; configuration is read during initialization. Invalid or missing configuration fails initialization with a clear error.
 

@@ -27,7 +27,7 @@ Custom inching provides independent enable/disable settings and auto-off delays 
 
 ## Installation
 
-1. Copy `converters/TS0003_TZ3000_qkixdnon_3gang.mjs` into the `external_converters` directory beside your Zigbee2MQTT `configuration.yaml` file. The destination relative to the Zigbee2MQTT data directory is `external_converters/TS0003_TZ3000_qkixdnon_3gang.mjs`.
+1. Copy `zigbee2mqtt/external_converters/TS0003_TZ3000_qkixdnon_3gang.mjs` into the `external_converters` directory beside your Zigbee2MQTT `configuration.yaml` file. The destination relative to the Zigbee2MQTT data directory is `external_zigbee2mqtt/external_converters/TS0003_TZ3000_qkixdnon_3gang.mjs`.
 2. Ensure external JavaScript converters are enabled for your installation; consult the official documentation for the `enable_external_js` setting where applicable.
 3. Restart Zigbee2MQTT after installation and check that the converter loads and the device matches the fingerprint above.
 
