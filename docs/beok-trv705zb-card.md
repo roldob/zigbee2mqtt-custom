@@ -65,13 +65,13 @@ The full card keeps the daily controls visible and places all configuration cont
 
 ## History shortcuts
 
-The Room, State and Window metric tiles are interactive on all three card types and navigate directly to Home Assistant's native **History** panel, filtered to the selected entity:
+The Room, State and Window metric tiles are interactive on all three card types and open a dedicated **read-only History popup** without leaving the dashboard:
 
-- **Room** opens `/history?entity_id=<climate entity>`, so the climate more-info controls are never opened by this shortcut and target temperature cannot be changed from the compact card.
-- **State** opens the valve-position entity in History when that entity is available; otherwise it falls back to the climate entity's History page.
-- **Window** opens the discovered window entity in History. If no window entity is available, the tile remains non-interactive.
+- **Room** shows Home Assistant's native history graph for the TRV climate entity. The popup contains no climate controls, so target temperature cannot be changed from the compact card.
+- **State** shows the valve-position entity's native history graph when that entity is available; otherwise it falls back to the climate entity.
+- **Window** shows the discovered window entity's native history graph. If no window entity is available, the tile remains non-interactive.
 
-The navigation intentionally does not use the more-info dialog and does not add the History panel's `back=1` query flag. Normal browser/app back navigation returns to the previous dashboard page.
+The popup embeds Home Assistant's `ha-more-info-history` component directly. It has only a close button, can also be dismissed by clicking the backdrop or pressing Escape, does not expose the normal more-info back navigation, and does not switch to the History panel.
 
 ## Entity discovery
 

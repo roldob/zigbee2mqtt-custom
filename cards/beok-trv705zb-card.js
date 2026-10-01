@@ -145,6 +145,9 @@ const HU_TEXT = {
   'Decrease target': 'Célhőmérséklet csökkentése',
   'Increase target': 'Célhőmérséklet növelése',
   'Show history': 'Előzmények megnyitása',
+  'History': 'Előzmények',
+  'Close': 'Bezárás',
+  'History is not available.': 'Az előzmények nem érhetők el.',
   'set default': 'alapérték beállítása',
   'Device has not reported this value. Tap to write the default.': 'Az eszköz még nem jelentette ezt az értéket. Koppints az alapérték kiírásához.',
   'Duration can be preconfigured here. On the status card it appears only while the matching preset is active.': 'Az időtartam itt előre beállítható. A status kártyán csak a megfelelő preset aktív állapotában jelenik meg.',
@@ -310,6 +313,9 @@ class BeokBase extends HTMLElement {
     this._boostLocalStart = null;
     this._boostLocalDuration = null;
     this._clockTimer = null;
+    this._historyOverlay = null;
+    this._historyElement = null;
+    this._historyKeyHandler = null;
   }
 
   connectedCallback() {
@@ -325,6 +331,7 @@ class BeokBase extends HTMLElement {
       window.clearInterval(this._clockTimer);
       this._clockTimer = null;
     }
+    this.closeHistory();
   }
 
   setConfig(config) {
@@ -336,6 +343,7 @@ class BeokBase extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (this._historyElement) this._historyElement.hass = hass;
     this.reconcileNumberDrafts();
     if (this._config && !this._discovering && (!Object.keys(this._map).length || Date.now()-this._lastDiscover > 60000)) this.discover();
     this.syncDrafts(false); this.render();
@@ -559,11 +567,126 @@ class BeokBase extends HTMLElement {
     return this.id(key) ?? fallback;
   }
 
-  openHistory(entityId) {
-    if (!entityId) return;
-    const path=`/history?entity_id=${encodeURIComponent(entityId)}`;
-    window.history.pushState(null,'',path);
-    window.dispatchEvent(new CustomEvent('location-changed'));
+  async openHistory(entityId) {
+    if (!entityId || !this._hass) return;
+
+    this.closeHistory();
+
+    // Home Assistant preloads the more-info module after the main UI renders;
+    // that module defines the read-only history graph component used here.
+    let historyReady=true;
+    if (!customElements.get('ha-more-info-history')) {
+      historyReady=await Promise.race([
+        customElements.whenDefined('ha-more-info-history').then(()=>true),
+        new Promise((resolve)=>window.setTimeout(()=>resolve(false),2000)),
+      ]);
+    }
+
+    const stateObj=this._hass.states?.[entityId];
+    const entityName=stateObj?.attributes?.friendly_name ?? entityId;
+    const overlay=document.createElement('div');
+    overlay.className='beok-trv-history-overlay';
+    overlay.innerHTML=`
+      <style>
+        .beok-trv-history-overlay{
+          position:fixed;inset:0;z-index:10000;
+          display:flex;align-items:center;justify-content:center;
+          padding:24px;box-sizing:border-box;
+          background:rgba(0,0,0,.46);
+        }
+        .beok-trv-history-popup{
+          width:min(760px,calc(100vw - 32px));
+          max-height:min(86vh,820px);
+          max-height:min(86dvh,820px);
+          display:flex;flex-direction:column;overflow:hidden;
+          border-radius:var(--ha-card-border-radius,12px);
+          background:var(--card-background-color,var(--ha-card-background,var(--primary-background-color)));
+          color:var(--primary-text-color);
+          box-shadow:0 12px 42px rgba(0,0,0,.42);
+        }
+        .beok-trv-history-header{
+          display:flex;align-items:center;gap:12px;
+          padding:14px 16px;border-bottom:1px solid var(--divider-color);
+          flex:0 0 auto;
+        }
+        .beok-trv-history-title{min-width:0;flex:1}
+        .beok-trv-history-title-main{
+          font-size:18px;font-weight:600;white-space:nowrap;
+          overflow:hidden;text-overflow:ellipsis;
+        }
+        .beok-trv-history-title-sub{
+          margin-top:2px;font-size:12px;color:var(--secondary-text-color);
+        }
+        .beok-trv-history-close{
+          width:40px;height:40px;border:0;border-radius:50%;
+          background:transparent;color:var(--primary-text-color);
+          font-size:28px;line-height:1;cursor:pointer;
+        }
+        .beok-trv-history-close:hover{background:rgba(var(--rgb-primary-text-color,0,0,0),.08)}
+        .beok-trv-history-body{
+          padding:8px 16px 18px;overflow:auto;min-height:220px;
+        }
+        .beok-trv-history-body ha-more-info-history{display:block}
+        .beok-trv-history-unavailable{
+          padding:32px 8px;text-align:center;color:var(--secondary-text-color);
+        }
+        @media(max-width:600px){
+          .beok-trv-history-overlay{padding:8px}
+          .beok-trv-history-popup{
+            width:calc(100vw - 16px);
+            max-height:calc(100dvh - 16px);
+          }
+          .beok-trv-history-body{padding:6px 10px 14px}
+        }
+      </style>
+      <div class="beok-trv-history-popup" role="dialog" aria-modal="true" aria-label="${esc(this.translateText('History'))}">
+        <div class="beok-trv-history-header">
+          <div class="beok-trv-history-title">
+            <div class="beok-trv-history-title-main">${esc(entityName)}</div>
+            <div class="beok-trv-history-title-sub">${esc(this.translateText('History'))}</div>
+          </div>
+          <button class="beok-trv-history-close" type="button" aria-label="${esc(this.translateText('Close'))}" title="${esc(this.translateText('Close'))}">×</button>
+        </div>
+        <div class="beok-trv-history-body"></div>
+      </div>
+    `;
+
+    const close=()=>this.closeHistory();
+    overlay.querySelector('.beok-trv-history-close')?.addEventListener('click',close);
+    overlay.addEventListener('click',(event)=>{
+      if (event.target === overlay) close();
+    });
+
+    const body=overlay.querySelector('.beok-trv-history-body');
+    if (historyReady && body) {
+      const historyElement=document.createElement('ha-more-info-history');
+      historyElement.hass=this._hass;
+      historyElement.entityId=entityId;
+      body.appendChild(historyElement);
+      this._historyElement=historyElement;
+    } else if (body) {
+      body.innerHTML=`<div class="beok-trv-history-unavailable">${esc(this.translateText('History is not available.'))}</div>`;
+    }
+
+    this._historyKeyHandler=(event)=>{
+      if (event.key === 'Escape') close();
+    };
+    document.addEventListener('keydown',this._historyKeyHandler);
+    document.body.appendChild(overlay);
+    this._historyOverlay=overlay;
+    overlay.querySelector('.beok-trv-history-close')?.focus();
+  }
+
+  closeHistory() {
+    if (this._historyKeyHandler) {
+      document.removeEventListener('keydown',this._historyKeyHandler);
+      this._historyKeyHandler=null;
+    }
+    if (this._historyOverlay) {
+      this._historyOverlay.remove();
+      this._historyOverlay=null;
+    }
+    this._historyElement=null;
   }
 
   bindHistoryTiles() {
