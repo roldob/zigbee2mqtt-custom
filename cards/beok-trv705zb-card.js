@@ -150,6 +150,7 @@ const HU_TEXT = {
   'History is not available.': 'Az előzmények nem érhetők el.',
   'Loading history…': 'Előzmények betöltése…',
   'No history data for the last 24 hours.': 'Nincs előzményadat az elmúlt 24 órából.',
+  'No history data for this interval.': 'Nincs előzményadat erre az időszakra.',
   'Last 24 hours': 'Elmúlt 24 óra',
   'Temperature': 'Hőmérséklet',
   'Valve position': 'Szelepállás',
@@ -577,9 +578,42 @@ class BeokBase extends HTMLElement {
     return this.id(key) ?? fallback;
   }
 
-  async fetchHistory(entityId) {
+  historyRangeLabel(hours,compact=false) {
+    const hu=this.language()==='hu';
+    if (hours < 24) return compact ? `${hours}h` : (hu ? `${hours} óra` : `${hours} hour${hours===1?'':'s'}`);
+    const days=hours/24;
+    return compact ? `${days}d` : (hu ? `${days} nap` : `${days} day${days===1?'':'s'}`);
+  }
+
+  formatHistoryDuration(milliseconds) {
+    const totalMinutes=Math.max(0,Math.round(milliseconds/60000));
+    const days=Math.floor(totalMinutes/1440);
+    const hours=Math.floor((totalMinutes%1440)/60);
+    const minutes=totalMinutes%60;
+    const hu=this.language()==='hu';
+    const parts=[];
+    if (days) parts.push(hu?`${days} nap`:`${days} day${days===1?'':'s'}`);
+    if (hours) parts.push(hu?`${hours} óra`:`${hours} hour${hours===1?'':'s'}`);
+    if (minutes || !parts.length) parts.push(hu?`${minutes} perc`:`${minutes} min`);
+    return parts.slice(0,2).join(' ');
+  }
+
+  formatHistoryDateTime(time) {
+    return new Intl.DateTimeFormat(this.language()==='hu'?'hu-HU':'en',{
+      year:'numeric',month:'2-digit',day:'2-digit',
+      hour:'2-digit',minute:'2-digit',
+    }).format(new Date(time));
+  }
+
+  formatHistoryTime(time) {
+    return new Intl.DateTimeFormat(this.language()==='hu'?'hu-HU':'en',{
+      hour:'2-digit',minute:'2-digit',
+    }).format(new Date(time));
+  }
+
+  async fetchHistory(entityId,hours=24) {
     const end=new Date();
-    const start=new Date(end.getTime()-24*60*60*1000);
+    const start=new Date(end.getTime()-hours*60*60*1000);
     const result=await this._hass.callWS({
       type:'history/history_during_period',
       start_time:start.toISOString(),
@@ -656,7 +690,7 @@ class BeokBase extends HTMLElement {
     const series=this.historySeries(entityId,kind,states);
     const points=series.points;
     if (!points.length) {
-      return `<div class="beok-trv-history-unavailable">${esc(this.translateText('No history data for the last 24 hours.'))}</div>`;
+      return `<div class="beok-trv-history-unavailable">${esc(this.translateText('No history data for this interval.'))}</div>`;
     }
 
     const width=720,height=300,left=58,right=16,top=18,bottom=42;
@@ -700,15 +734,19 @@ class BeokBase extends HTMLElement {
       }
     }
 
-    const timeFormat=new Intl.DateTimeFormat(this.language()==='hu'?'hu-HU':'en',{hour:'2-digit',minute:'2-digit'});
+    const span=endMs-startMs;
+    const axisFormat=new Intl.DateTimeFormat(this.language()==='hu'?'hu-HU':'en',
+      span>30*60*60*1000
+        ? {month:'2-digit',day:'2-digit',hour:'2-digit'}
+        : {hour:'2-digit',minute:'2-digit'});
     const xLabels=[];
     const vertical=[];
     for (let i=0;i<5;i++) {
       const ratio=i/4;
       const xx=left+plotW*ratio;
-      const time=startMs+(endMs-startMs)*ratio;
+      const time=startMs+span*ratio;
       vertical.push(`<line x1="${xx}" y1="${top}" x2="${xx}" y2="${height-bottom}" />`);
-      xLabels.push(`<text x="${xx}" y="${height-14}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${esc(timeFormat.format(new Date(time)))}</text>`);
+      xLabels.push(`<text x="${xx}" y="${height-14}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${esc(axisFormat.format(new Date(time)))}</text>`);
     }
 
     let path='';
@@ -733,12 +771,107 @@ class BeokBase extends HTMLElement {
         <div><strong>${esc(series.title)}</strong></div>
         <div>${esc(current)}</div>
       </div>
-      <svg class="beok-trv-history-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(series.title)}">
-        <g class="beok-trv-history-grid">${grid.join('')}${vertical.join('')}</g>
-        <g class="beok-trv-history-labels">${yLabels.join('')}${xLabels.join('')}</g>
-        <path class="beok-trv-history-line" d="${path}"></path>
-      </svg>
+      <div class="beok-trv-history-chart-wrap">
+        <svg class="beok-trv-history-chart" data-history-chart viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(series.title)}">
+          <g class="beok-trv-history-grid">${grid.join('')}${vertical.join('')}</g>
+          <g class="beok-trv-history-labels">${yLabels.join('')}${xLabels.join('')}</g>
+          <path class="beok-trv-history-line" d="${path}"></path>
+          <line class="beok-trv-history-crosshair" data-history-crosshair x1="${left}" y1="${top}" x2="${left}" y2="${height-bottom}" visibility="hidden"></line>
+          <rect class="beok-trv-history-hit" x="${left}" y="${top}" width="${plotW}" height="${plotH}"></rect>
+        </svg>
+        <div class="beok-trv-history-tooltip" data-history-tooltip hidden></div>
+      </div>
     `;
+  }
+
+  bindHistoryChartInteraction(body,entityId,kind,states,startMs,endMs) {
+    const svg=body.querySelector('[data-history-chart]');
+    const crosshair=body.querySelector('[data-history-crosshair]');
+    const tooltip=body.querySelector('[data-history-tooltip]');
+    const wrap=body.querySelector('.beok-trv-history-chart-wrap');
+    if (!svg || !crosshair || !tooltip || !wrap) return;
+
+    const series=this.historySeries(entityId,kind,states);
+    if (!series.points.length) return;
+
+    const width=720,left=58,right=16,plotW=width-left-right;
+    let pointerDown=false;
+
+    const hide=()=>{
+      crosshair.setAttribute('visibility','hidden');
+      tooltip.hidden=true;
+    };
+
+    const update=(event)=>{
+      const rect=svg.getBoundingClientRect();
+      if (!rect.width) return;
+      const viewX=Math.max(left,Math.min(width-right,(event.clientX-rect.left)/rect.width*width));
+      const ratio=(viewX-left)/plotW;
+      const pointerTime=startMs+(endMs-startMs)*ratio;
+
+      let point=series.points[0];
+      let info='';
+
+      if (series.discrete) {
+        let index=0;
+        for (let i=1;i<series.points.length;i++) {
+          if (series.points[i].time>pointerTime) break;
+          index=i;
+        }
+        point=series.points[index];
+        const segmentStart=Math.max(startMs,point.time);
+        const segmentEnd=Math.min(endMs,series.points[index+1]?.time ?? endMs);
+        const stateText=point.value?series.discrete.high:series.discrete.low;
+        info=`<strong>${esc(stateText)}</strong><br>${esc(this.formatHistoryTime(segmentStart))}–${esc(this.formatHistoryTime(segmentEnd))} · ${esc(this.formatHistoryDuration(segmentEnd-segmentStart))}`;
+      } else {
+        let bestDistance=Math.abs(point.time-pointerTime);
+        for (let i=1;i<series.points.length;i++) {
+          const distance=Math.abs(series.points[i].time-pointerTime);
+          if (distance>=bestDistance) break;
+          point=series.points[i];
+          bestDistance=distance;
+        }
+        const value=`${fmt(point.value)}${series.unit?` ${series.unit}`:''}`;
+        info=`<strong>${esc(value)}</strong><br>${esc(this.formatHistoryDateTime(point.time))}`;
+      }
+
+      const pointX=left+Math.max(0,Math.min(1,(point.time-startMs)/(endMs-startMs)))*plotW;
+      crosshair.setAttribute('x1',String(pointX));
+      crosshair.setAttribute('x2',String(pointX));
+      crosshair.setAttribute('visibility','visible');
+
+      tooltip.innerHTML=info;
+      tooltip.hidden=false;
+
+      const wrapRect=wrap.getBoundingClientRect();
+      const tooltipRect=tooltip.getBoundingClientRect();
+      const pixelX=pointX/width*rect.width+(rect.left-wrapRect.left);
+      const maxLeft=Math.max(8,wrapRect.width-tooltipRect.width-8);
+      tooltip.style.left=`${Math.max(8,Math.min(maxLeft,pixelX-tooltipRect.width/2))}px`;
+      tooltip.style.top='8px';
+    };
+
+    svg.addEventListener('pointerenter',update);
+    svg.addEventListener('pointermove',(event)=>{
+      if (event.pointerType==='mouse' || pointerDown) update(event);
+    });
+    svg.addEventListener('pointerdown',(event)=>{
+      pointerDown=true;
+      svg.setPointerCapture?.(event.pointerId);
+      update(event);
+    });
+    svg.addEventListener('pointerup',(event)=>{
+      pointerDown=false;
+      svg.releasePointerCapture?.(event.pointerId);
+      update(event);
+    });
+    svg.addEventListener('pointercancel',()=>{
+      pointerDown=false;
+      hide();
+    });
+    svg.addEventListener('pointerleave',()=>{
+      if (!pointerDown) hide();
+    });
   }
 
   async openHistory(entityId,kind='value') {
@@ -748,6 +881,10 @@ class BeokBase extends HTMLElement {
 
     const stateObj=this._hass.states?.[entityId];
     const entityName=stateObj?.attributes?.friendly_name ?? entityId;
+    const ranges=[1,6,12,24,72,168];
+    const defaultHours=24;
+    let requestId=0;
+
     const overlay=document.createElement('div');
     overlay.className='beok-trv-history-overlay';
     overlay.innerHTML=`
@@ -787,6 +924,21 @@ class BeokBase extends HTMLElement {
           font-size:28px;line-height:1;cursor:pointer;
         }
         .beok-trv-history-close:hover{background:rgba(var(--rgb-primary-text-color,0,0,0),.08)}
+        .beok-trv-history-ranges{
+          display:flex;gap:6px;flex-wrap:wrap;
+          padding:10px 16px 0;
+        }
+        .beok-trv-history-range{
+          border:1px solid var(--divider-color);border-radius:999px;
+          padding:6px 10px;background:var(--secondary-background-color);
+          color:var(--primary-text-color);cursor:pointer;font:inherit;
+          min-width:44px;
+        }
+        .beok-trv-history-range.active{
+          border-color:var(--primary-color);
+          background:color-mix(in srgb,var(--primary-color) 16%,var(--secondary-background-color));
+          color:var(--primary-color);font-weight:600;
+        }
         .beok-trv-history-body{
           padding:12px 16px 18px;overflow:auto;min-height:320px;
         }
@@ -798,12 +950,31 @@ class BeokBase extends HTMLElement {
           display:flex;justify-content:space-between;align-items:center;gap:12px;
           margin:2px 4px 8px;font-size:14px;
         }
-        .beok-trv-history-chart{display:block;width:100%;height:auto;min-height:280px}
+        .beok-trv-history-chart-wrap{position:relative}
+        .beok-trv-history-chart{
+          display:block;width:100%;height:auto;min-height:280px;
+          touch-action:none;user-select:none;
+        }
         .beok-trv-history-grid line{stroke:var(--divider-color);stroke-width:1}
         .beok-trv-history-labels text{fill:var(--secondary-text-color);font-size:11px}
         .beok-trv-history-line{
           fill:none;stroke:var(--primary-color);stroke-width:3;
           stroke-linecap:round;stroke-linejoin:round;
+        }
+        .beok-trv-history-crosshair{
+          stroke:var(--primary-text-color);stroke-width:1.2;
+          stroke-dasharray:4 3;pointer-events:none;
+        }
+        .beok-trv-history-hit{fill:transparent;cursor:crosshair}
+        .beok-trv-history-tooltip{
+          position:absolute;z-index:3;pointer-events:none;
+          min-width:120px;max-width:240px;
+          padding:7px 9px;border-radius:8px;
+          background:var(--primary-background-color);
+          color:var(--primary-text-color);
+          border:1px solid var(--divider-color);
+          box-shadow:0 4px 14px rgba(0,0,0,.22);
+          font-size:12px;line-height:1.35;text-align:center;
         }
         @media(max-width:600px){
           .beok-trv-history-overlay{padding:8px}
@@ -811,6 +982,8 @@ class BeokBase extends HTMLElement {
             width:calc(100vw - 16px);
             max-height:calc(100dvh - 16px);
           }
+          .beok-trv-history-ranges{padding:8px 10px 0;gap:5px}
+          .beok-trv-history-range{padding:6px 8px;min-width:40px}
           .beok-trv-history-body{padding:8px 6px 12px}
           .beok-trv-history-chart{min-height:240px}
         }
@@ -819,9 +992,12 @@ class BeokBase extends HTMLElement {
         <div class="beok-trv-history-header">
           <div class="beok-trv-history-title">
             <div class="beok-trv-history-title-main">${esc(entityName)}</div>
-            <div class="beok-trv-history-title-sub">${esc(this.translateText('Last 24 hours'))}</div>
+            <div class="beok-trv-history-title-sub" data-history-range-title>${esc(this.historyRangeLabel(defaultHours))}</div>
           </div>
           <button class="beok-trv-history-close" type="button" aria-label="${esc(this.translateText('Close'))}" title="${esc(this.translateText('Close'))}">×</button>
+        </div>
+        <div class="beok-trv-history-ranges">
+          ${ranges.map((hours)=>`<button class="beok-trv-history-range ${hours===defaultHours?'active':''}" type="button" data-history-hours="${hours}" title="${esc(this.historyRangeLabel(hours))}">${esc(this.historyRangeLabel(hours,true))}</button>`).join('')}
         </div>
         <div class="beok-trv-history-body"><div class="beok-trv-history-loading">${esc(this.translateText('Loading history…'))}</div></div>
       </div>
@@ -842,15 +1018,33 @@ class BeokBase extends HTMLElement {
     overlay.querySelector('.beok-trv-history-close')?.focus();
 
     const body=overlay.querySelector('.beok-trv-history-body');
-    try {
-      const history=await this.fetchHistory(entityId);
-      if (this._historyOverlay !== overlay || !body) return;
-      body.innerHTML=this.historyChartHtml(entityId,kind,history.states,history.start,history.end);
-    } catch (error) {
-      if (this._historyOverlay !== overlay || !body) return;
-      body.innerHTML=`<div class="beok-trv-history-unavailable">${esc(this.translateText('History is not available.'))}</div>`;
-      console.warn('BEOK TRV history popup:',error);
-    }
+    const rangeTitle=overlay.querySelector('[data-history-range-title]');
+
+    const loadRange=async(hours)=>{
+      const currentRequest=++requestId;
+      overlay.querySelectorAll('[data-history-hours]').forEach((button)=>{
+        button.classList.toggle('active',Number(button.dataset.historyHours)===hours);
+      });
+      if (rangeTitle) rangeTitle.textContent=this.historyRangeLabel(hours);
+      if (body) body.innerHTML=`<div class="beok-trv-history-loading">${esc(this.translateText('Loading history…'))}</div>`;
+
+      try {
+        const history=await this.fetchHistory(entityId,hours);
+        if (this._historyOverlay !== overlay || currentRequest!==requestId || !body) return;
+        body.innerHTML=this.historyChartHtml(entityId,kind,history.states,history.start,history.end);
+        this.bindHistoryChartInteraction(body,entityId,kind,history.states,history.start,history.end);
+      } catch (error) {
+        if (this._historyOverlay !== overlay || currentRequest!==requestId || !body) return;
+        body.innerHTML=`<div class="beok-trv-history-unavailable">${esc(this.translateText('History is not available.'))}</div>`;
+        console.warn('BEOK TRV history popup:',error);
+      }
+    };
+
+    overlay.querySelectorAll('[data-history-hours]').forEach((button)=>{
+      button.addEventListener('click',()=>loadRange(Number(button.dataset.historyHours)));
+    });
+
+    await loadRange(defaultHours);
   }
 
   closeHistory() {
