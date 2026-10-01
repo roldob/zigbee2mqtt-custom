@@ -559,10 +559,10 @@ class BeokBase extends HTMLElement {
     return this.id(key) ?? fallback;
   }
 
-  openMoreInfo(entityId) {
+  openHistory(entityId) {
     if (!entityId) return;
     this.dispatchEvent(new CustomEvent('hass-more-info', {
-      detail: {entityId},
+      detail: {entityId, view:'history'},
       bubbles: true,
       composed: true,
     }));
@@ -571,7 +571,7 @@ class BeokBase extends HTMLElement {
   bindHistoryTiles() {
     const r=this.shadowRoot;
     if (!r) return;
-    const open=(element)=>this.openMoreInfo(element?.dataset?.historyEntity);
+    const open=(element)=>this.openHistory(element?.dataset?.historyEntity);
     r.querySelectorAll('[data-history-entity]').forEach((element)=>{
       element.addEventListener('click',()=>open(element));
       element.addEventListener('keydown',(event)=>{
