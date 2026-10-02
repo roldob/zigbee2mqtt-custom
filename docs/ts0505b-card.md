@@ -37,6 +37,10 @@ The collapsible sections include:
 
 The same compact color editor is used for the main light and custom Startup/Scene color controls. The XY advanced controls use large step buttons and retain their expanded state while the card updates. The native time input keeps focus while changing the hour and minute.
 
+## Language
+
+All card-owned controls, labels, presets, and accessibility text follow the Home Assistant frontend language. Hungarian is used when the frontend language is Hungarian (`hu` or a regional variant); English is the default for every other language or when no language is available. Entity names, state values, and options are supplied by Home Assistant and remain unchanged.
+
 These sections depend on the converter or group extension exposing the matching Home Assistant entities. The card does not create missing entities.
 
 ## Installation
@@ -50,10 +54,10 @@ Copy `homeassistant/www/ts0505b-card.js` from this repository to Home Assistant'
 Add a dashboard resource with type **JavaScript Module**:
 
 ```text
-/local/ts0505b-card.js?v=6
+/local/ts0505b-card.js?v=7
 ```
 
-Then add either card using the YAML above. After replacing the JavaScript in `www` during a future update, increase the query version (for example, `v=7`) and reload the dashboard so the browser downloads the new file.
+Then add either card using the YAML above. After replacing the JavaScript in `www` during a future update, increase the query version (for example, `v=8`) and reload the dashboard so the browser downloads the new file.
 
 ## Privacy
 

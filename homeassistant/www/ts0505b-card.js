@@ -1,7 +1,23 @@
 /* TS0505B Lovelace card. No frontend card dependencies. */
 (() => {
   const TAGS = ['ts0505b-status-card', 'ts0505b-full-card'];
-  const DAYS = [['monday','Hétfő'],['tuesday','Kedd'],['wednesday','Szerda'],['thursday','Csütörtök'],['friday','Péntek'],['saturday','Szombat'],['sunday','Vasárnap']];
+  const HU = {
+    Light: 'Fény', Brightness: 'Fényerő', 'Color temperature': 'Színhőmérséklet', Warm: 'Meleg', Cool: 'Hideg',
+    'Color / XY': 'Szín / XY', 'Hue and saturation color picker': 'Színárnyalat- és telítettségválasztó',
+    'Hue runs horizontally; saturation runs vertically': 'Vízszintesen az árnyalat, függőlegesen a telítettség állítható',
+    'Advanced XY': 'Speciális XY', 'Apply XY': 'XY alkalmazása',
+    'Warm white': 'Meleg fehér', Neutral: 'Semleges', 'Cool white': 'Hideg fehér', Red: 'Piros', Orange: 'Narancs', Green: 'Zöld', Blue: 'Kék', Purple: 'Lila',
+    'Turn off': 'Kikapcsolás', 'Turn on': 'Bekapcsolás', 'Color settings': 'Színbeállítások', 'Color presets': 'Előre beállított színek',
+    Startup: 'Indítás', Behavior: 'Működés', 'Color mode': 'Színmód', 'Do Not Disturb': 'Ne zavarjanak',
+    Scene: 'Jelenet', 'Dynamic effect': 'Dinamikus effektus', Speed: 'Sebesség', 'Scene point': 'Jelenetpont', Enabled: 'Engedélyezve', Mode: 'Mód',
+    Rhythm: 'Ritmus', Days: 'Napok', Monday: 'Hétfő', Tuesday: 'Kedd', Wednesday: 'Szerda', Thursday: 'Csütörtök', Friday: 'Péntek', Saturday: 'Szombat', Sunday: 'Vasárnap',
+    Name: 'Név', Time: 'Időpont', 'Save': 'Mentés', Discard: 'Elvetés', Reset: 'Visszaállítás',
+    'Decrease': 'Csökkentés', 'Increase': 'Növelés', 'time': 'időpont',
+    'This Rhythm point is inactive': 'Ez a Rhythm pont inaktív',
+    'Entity not found.': 'Az entitás nem található.',
+    'Invalid XY coordinates (x ≥ 0, y > 0, x + y ≤ 1).': 'Érvénytelen XY koordináta (x ≥ 0, y > 0, x + y ≤ 1).',
+  };
+  const DAYS = [['monday','Monday'],['tuesday','Tuesday'],['wednesday','Wednesday'],['thursday','Thursday'],['friday','Friday'],['saturday','Saturday'],['sunday','Sunday']];
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, Number(v)));
   const linear = v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
@@ -51,6 +67,10 @@
       const editing=active?.tagName==='INPUT'&&['text','number','range','time'].includes(active.type);
       if(this.config&&!editing&&!this._picking)this._render();
     }
+    t(text) {
+      const language = String(this._hass?.language ?? this._hass?.locale?.language ?? '').toLowerCase().replace('_', '-').split('-')[0];
+      return language === 'hu' ? (HU[text] ?? text) : text;
+    }
     getCardSize() { return this.localName==='ts0505b-full-card'?9:4; }
     get _base() { return this.config.entity.slice(6); }
     id(domain,suffix='') { return `${domain}.${this._base}${suffix?'_'+suffix:''}`; }
@@ -81,17 +101,17 @@
       if(domain==='select') return `<select id="${id}" data-entity="${id}">${(s.attributes.options??[]).map(o=>`<option value="${esc(o)}" ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
       if(domain==='number') {
         const min=Number(s.attributes.min??0),max=Number(s.attributes.max??100),step=Number(s.attributes.step??1);
-        return `<div class="number-stepper"><button type="button" class="step-button" data-step="${id}" data-delta="-${step}" aria-label="${esc(label)} csökkentése">−</button><output>${esc(v)}</output><button type="button" class="step-button" data-step="${id}" data-delta="${step}" aria-label="${esc(label)} növelése">+</button><span class="step-range">${min}–${max}</span></div>`;
+        return `<div class="number-stepper"><button type="button" class="step-button" data-step="${id}" data-delta="-${step}" aria-label="${esc(label)} — ${this.t('Decrease')}">−</button><output>${esc(v)}</output><button type="button" class="step-button" data-step="${id}" data-delta="${step}" aria-label="${esc(label)} — ${this.t('Increase')}">+</button><span class="step-range">${min}–${max}</span></div>`;
       }
       if(domain==='text'&&/_rhythm_[1-8]_time$/.test(id)) {
         const time=/^\d{2}:\d{2}$/.test(v)?v:'';
-        return `<div class="time-control">${circleIcon('clock-outline')}<input id="${id}" data-entity="${id}" type="time" value="${esc(time)}" aria-label="${esc(label)} időpont"></div>`;
+        return `<div class="time-control">${circleIcon('clock-outline')}<input id="${id}" data-entity="${id}" type="time" value="${esc(time)}" aria-label="${esc(label)} ${this.t('time')}"></div>`;
       }
       if(domain==='text') return `<input id="${id}" data-entity="${id}" type="text" value="${esc(v)}">`;
       return `<span>${esc(v)}</span>`;
     }
     buttons(prefix) {
-      return `<div class="buttons">${[['save','content-save','Save'],['discard','undo','Discard'],['reset','restore','Reset']].map(([act,icon,label])=>{const id=this.id('button',`${prefix}_${act}`);return this.has(id)?`<button data-press="${id}">${circleIcon(icon)}${label}</button>`:'';}).join('')}</div>`;
+      return `<div class="buttons">${[['save','content-save','Save'],['discard','undo','Discard'],['reset','restore','Reset']].map(([act,icon,label])=>{const id=this.id('button',`${prefix}_${act}`);return this.has(id)?`<button data-press="${id}">${circleIcon(icon)}${this.t(label)}</button>`:'';}).join('')}</div>`;
     }
     switchRow(suffix,label) { return this.row(this.id('switch',suffix),label); }
     lightEditor(entity,key,opts={}) {
@@ -107,10 +127,10 @@
       const showPower=main && !opts.noPower;
       if(opts.compact) return this.compactLightEditor(entity,key,{st,a,modes,canTemp,canColor,minK,maxK,bright,kelvin,xy,showPower});
       return `<div class="light-editor" data-editor="${key}">
-        ${showPower?`<div class="row"><span>Fény</span><button class="power ${st.state==='on'?'on':''}" data-power="${entity}">${circleIcon(st.state==='on'?'lightbulb-on':'lightbulb-off')} ${st.state==='on'?'ON':'OFF'}</button></div>`:''}
-        <div class="slider-row"><div><label>Brightness</label><output data-output="${key}-brightness">${bright}%</output></div><input type="range" min="1" max="100" value="${bright||1}" data-light="${entity}" data-kind="brightness" data-output-target="${key}-brightness"></div>
-        ${canTemp?`<div class="slider-row"><div><label>Color temperature</label><output data-output="${key}-temp">${kelvin} K</output></div><input class="temperature" type="range" min="${minK}" max="${maxK}" step="10" value="${clamp(kelvin,minK,maxK)}" data-light="${entity}" data-kind="temp" data-output-target="${key}-temp"><small>Meleg · ${minK} K <span style="float:right">Hideg · ${maxK} K</span></small></div>`:''}
-        ${canColor?`<div class="color-block"><div class="color-head"><label>Color / XY</label><span class="swatch" data-swatch="${key}" style="background:rgb(${xyToRgb(Number(xy[0]),Number(xy[1])).join(',')})"></span></div><canvas class="palette" data-palette="${key}" data-light="${entity}" width="300" height="160" aria-label="Hue and saturation color picker"></canvas><small>Vízszintesen árnyalat, függőlegesen telítettség</small><div class="xy-label">x: ${Number(xy[0]).toFixed(4)} · y: ${Number(xy[1]).toFixed(4)}</div><details class="advanced"><summary>Advanced XY</summary><div class="xy-inputs"><label>x <input type="number" min="0" max="1" step="0.0001" value="${Number(xy[0]).toFixed(4)}" data-xy="x" data-light="${entity}"></label><label>y <input type="number" min="0" max="1" step="0.0001" value="${Number(xy[1]).toFixed(4)}" data-xy="y" data-light="${entity}"></label><button data-apply-xy="${entity}">Apply XY</button></div></details></div>`:''}
+        ${showPower?`<div class="row"><span>${this.t('Light')}</span><button class="power ${st.state==='on'?'on':''}" data-power="${entity}">${circleIcon(st.state==='on'?'lightbulb-on':'lightbulb-off')} ${st.state==='on'?'ON':'OFF'}</button></div>`:''}
+        <div class="slider-row"><div><label>${this.t('Brightness')}</label><output data-output="${key}-brightness">${bright}%</output></div><input type="range" min="1" max="100" value="${bright||1}" data-light="${entity}" data-kind="brightness" data-output-target="${key}-brightness"></div>
+        ${canTemp?`<div class="slider-row"><div><label>${this.t('Color temperature')}</label><output data-output="${key}-temp">${kelvin} K</output></div><input class="temperature" type="range" min="${minK}" max="${maxK}" step="10" value="${clamp(kelvin,minK,maxK)}" data-light="${entity}" data-kind="temp" data-output-target="${key}-temp"><small>${this.t('Warm')} · ${minK} K <span style="float:right">${this.t('Cool')} · ${maxK} K</span></small></div>`:''}
+        ${canColor?`<div class="color-block"><div class="color-head"><label>${this.t('Color / XY')}</label><span class="swatch" data-swatch="${key}" style="background:rgb(${xyToRgb(Number(xy[0]),Number(xy[1])).join(',')})"></span></div><canvas class="palette" data-palette="${key}" data-light="${entity}" width="300" height="160" aria-label="${this.t('Hue and saturation color picker')}"></canvas><small>${this.t('Hue runs horizontally; saturation runs vertically')}</small><div class="xy-label">x: ${Number(xy[0]).toFixed(4)} · y: ${Number(xy[1]).toFixed(4)}</div><details class="advanced"><summary>${this.t('Advanced XY')}</summary><div class="xy-inputs"><label>x <input type="number" min="0" max="1" step="0.0001" value="${Number(xy[0]).toFixed(4)}" data-xy="x" data-light="${entity}"></label><label>y <input type="number" min="0" max="1" step="0.0001" value="${Number(xy[1]).toFixed(4)}" data-xy="y" data-light="${entity}"></label><button data-apply-xy="${entity}">${this.t('Apply XY')}</button></div></details></div>`:''}
       </div>`;
     }
     compactLightEditor(entity,key,{st,a,modes,canTemp,canColor,minK,maxK,bright,kelvin,xy,showPower}) {
@@ -118,14 +138,14 @@
       const activeColor=cssRgb(currentRgb);
       const ctFill=clamp((kelvin-minK)*100/(maxK-minK),0,100);
       const presets=[
-        {name:'Meleg fehér',icon:'white-balance-incandescent',temp:2700},
-        {name:'Semleges',icon:'white-balance-sunny',temp:4000},
-        {name:'Hideg fehér',icon:'weather-snowy',temp:5500},
-        {name:'Piros',icon:'circle',rgb:[255,0,0]},
-        {name:'Narancs',icon:'circle',rgb:[255,105,0]},
-        {name:'Zöld',icon:'circle',rgb:[0,255,0]},
-        {name:'Kék',icon:'circle',rgb:[0,64,255]},
-        {name:'Lila',icon:'circle',rgb:[180,0,255]},
+        {name:this.t('Warm white'),icon:'white-balance-incandescent',temp:2700},
+        {name:this.t('Neutral'),icon:'white-balance-sunny',temp:4000},
+        {name:this.t('Cool white'),icon:'weather-snowy',temp:5500},
+        {name:this.t('Red'),icon:'circle',rgb:[255,0,0]},
+        {name:this.t('Orange'),icon:'circle',rgb:[255,105,0]},
+        {name:this.t('Green'),icon:'circle',rgb:[0,255,0]},
+        {name:this.t('Blue'),icon:'circle',rgb:[0,64,255]},
+        {name:this.t('Purple'),icon:'circle',rgb:[180,0,255]},
       ].filter(p=>p.temp?canTemp:canColor);
       const presetButtons=presets.map(p=>{
         const payload=p.temp?`data-preset-temp="${p.temp}"`:`data-preset-xy="${rgbToXy(...p.rgb).join(',')}"`;
@@ -134,12 +154,12 @@
       }).join('');
       return `<div class="compact-light" data-editor="${key}">
         <div class="compact-main ${showPower?'':'no-power'}">
-          ${showPower?`<button class="power-icon ${st.state==='on'?'on':''}" data-power="${entity}" title="${st.state==='on'?'Kikapcsolás':'Bekapcsolás'}" aria-label="${st.state==='on'?'Kikapcsolás':'Bekapcsolás'}">${circleIcon(st.state==='on'?'lightbulb-on':'lightbulb-off')}</button>`:''}
+          ${showPower?`<button class="power-icon ${st.state==='on'?'on':''}" data-power="${entity}" title="${this.t(st.state==='on'?'Turn off':'Turn on')}" aria-label="${this.t(st.state==='on'?'Turn off':'Turn on')}">${circleIcon(st.state==='on'?'lightbulb-on':'lightbulb-off')}</button>`:''}
           <div class="brightness-control"><input class="brightness-wide" type="range" min="1" max="100" value="${bright||1}" data-light="${entity}" data-kind="brightness" data-output-target="${key}-brightness" style="--active-color:${activeColor};--fill:${bright}%"><output data-output="${key}-brightness">${bright}%</output></div>
-          <details class="quick-controls" data-section="${key}-adjustments" ${this._open.has(`${key}-adjustments`)?'open':''}><summary title="Színbeállítások">${circleIcon('tune-variant')}</summary><div class="adjustment-panel">
-            ${canTemp?`<div class="slider-row"><div><label>Color temperature</label><output data-output="${key}-temp">${kelvin} K</output></div><input class="temperature-wide" type="range" min="${minK}" max="${maxK}" step="10" value="${clamp(kelvin,minK,maxK)}" data-light="${entity}" data-kind="temp" data-output-target="${key}-temp" style="--active-color:${activeColor};--fill:${ctFill}%"><small>Meleg · ${minK} K <span style="float:right">Hideg · ${maxK} K</span></small></div>`:''}
-          ${canColor?`<div class="color-block"><div class="color-head"><label>Color / XY</label><span class="swatch" data-swatch="${key}" style="background:${activeColor}"></span></div><canvas class="palette" data-palette="${key}" data-light="${entity}" width="300" height="160" aria-label="Hue and saturation color picker"></canvas><small>Vízszintesen árnyalat, függőlegesen telítettség</small><div class="xy-label">x: ${Number(xy[0]).toFixed(4)} · y: ${Number(xy[1]).toFixed(4)}</div><details class="advanced" data-persist="advanced-${key}" ${this._openDetails.has(`advanced-${key}`)?'open':''}><summary>Advanced XY</summary><div class="xy-inputs"><div class="xy-stepper"><span>x</span><button type="button" data-xy-change="x" data-delta="-0.0001" aria-label="x csökkentése">−</button><output data-xy="x">${Number(xy[0]).toFixed(4)}</output><button type="button" data-xy-change="x" data-delta="0.0001" aria-label="x növelése">+</button></div><div class="xy-stepper"><span>y</span><button type="button" data-xy-change="y" data-delta="-0.0001" aria-label="y csökkentése">−</button><output data-xy="y">${Number(xy[1]).toFixed(4)}</output><button type="button" data-xy-change="y" data-delta="0.0001" aria-label="y növelése">+</button></div><button class="apply-xy" data-apply-xy="${entity}">Apply XY</button></div></details></div>`:''}
-            ${presetButtons?`<div class="presets"><label>Előre beállított színek</label><div>${presetButtons}</div></div>`:''}
+          <details class="quick-controls" data-section="${key}-adjustments" ${this._open.has(`${key}-adjustments`)?'open':''}><summary title="${this.t('Color settings')}">${circleIcon('tune-variant')}</summary><div class="adjustment-panel">
+            ${canTemp?`<div class="slider-row"><div><label>${this.t('Color temperature')}</label><output data-output="${key}-temp">${kelvin} K</output></div><input class="temperature-wide" type="range" min="${minK}" max="${maxK}" step="10" value="${clamp(kelvin,minK,maxK)}" data-light="${entity}" data-kind="temp" data-output-target="${key}-temp" style="--active-color:${activeColor};--fill:${ctFill}%"><small>${this.t('Warm')} · ${minK} K <span style="float:right">${this.t('Cool')} · ${maxK} K</span></small></div>`:''}
+          ${canColor?`<div class="color-block"><div class="color-head"><label>${this.t('Color / XY')}</label><span class="swatch" data-swatch="${key}" style="background:${activeColor}"></span></div><canvas class="palette" data-palette="${key}" data-light="${entity}" width="300" height="160" aria-label="${this.t('Hue and saturation color picker')}"></canvas><small>${this.t('Hue runs horizontally; saturation runs vertically')}</small><div class="xy-label">x: ${Number(xy[0]).toFixed(4)} · y: ${Number(xy[1]).toFixed(4)}</div><details class="advanced" data-persist="advanced-${key}" ${this._openDetails.has(`advanced-${key}`)?'open':''}><summary>${this.t('Advanced XY')}</summary><div class="xy-inputs"><div class="xy-stepper"><span>x</span><button type="button" data-xy-change="x" data-delta="-0.0001" aria-label="x — ${this.t('Decrease')}">−</button><output data-xy="x">${Number(xy[0]).toFixed(4)}</output><button type="button" data-xy-change="x" data-delta="0.0001" aria-label="x — ${this.t('Increase')}">+</button></div><div class="xy-stepper"><span>y</span><button type="button" data-xy-change="y" data-delta="-0.0001" aria-label="y — ${this.t('Decrease')}">−</button><output data-xy="y">${Number(xy[1]).toFixed(4)}</output><button type="button" data-xy-change="y" data-delta="0.0001" aria-label="y — ${this.t('Increase')}">+</button></div><button class="apply-xy" data-apply-xy="${entity}">${this.t('Apply XY')}</button></div></details></div>`:''}
+            ${presetButtons?`<div class="presets"><label>${this.t('Color presets')}</label><div>${presetButtons}</div></div>`:''}
           </div></details>
         </div>
       </div>`;
@@ -148,46 +168,46 @@
       const behavior=this.id('select','startup_behavior'), startup=this.id('light','startup'), dnd=this.id('switch','do_not_disturb');
       if(!this.has(behavior)&&!this.has(startup)&&!this.has(dnd)) return '';
       const b=this.value(behavior);
-      return this.section('startup','power-settings',`Startup${b?' — '+b:''}`,`${this.row(behavior,'Behavior')}${this.row(this.id('sensor','startup_color_mode'),'Color mode')}${b==='customized'?this.lightEditor(startup,'startup',{noPower:true,compact:true}):''}${this.switchRow('do_not_disturb','Do Not Disturb')}`);
+      return this.section('startup','power-settings',`${this.t('Startup')}${b?' — '+b:''}`,`${this.row(behavior,this.t('Behavior'))}${this.row(this.id('sensor','startup_color_mode'),this.t('Color mode'))}${b==='customized'?this.lightEditor(startup,'startup',{noPower:true,compact:true}):''}${this.switchRow('do_not_disturb',this.t('Do Not Disturb'))}`);
     }
     scene() {
       const selected=this.id('select','scene_selected');
       if(!this.has(selected)) return '';
       const point=this.id('light','scene_point'), enabled=this.value(this.id('switch','scene_point_enabled'))==='on';
-      let body=this.row(selected,'Scene')+this.row(this.id('select','scene_effect'),'Dynamic effect')+this.row(this.id('number','scene_speed'),'Speed')+this.row(this.id('select','scene_point_selected'),'Scene point')+this.switchRow('scene_point_enabled','Enabled');
-      if(enabled) { body+=this.row(this.id('select','scene_point_mode'),'Mode')+this.lightEditor(point,'scene',{noPower:true,compact:true}); }
-      body+=this.buttons('scene');return this.section('scene','palette-outline','Scene',body);
+      let body=this.row(selected,this.t('Scene'))+this.row(this.id('select','scene_effect'),this.t('Dynamic effect'))+this.row(this.id('number','scene_speed'),this.t('Speed'))+this.row(this.id('select','scene_point_selected'),this.t('Scene point'))+this.switchRow('scene_point_enabled',this.t('Enabled'));
+      if(enabled) { body+=this.row(this.id('select','scene_point_mode'),this.t('Mode'))+this.lightEditor(point,'scene',{noPower:true,compact:true}); }
+      body+=this.buttons('scene');return this.section('scene','palette-outline',this.t('Scene'),body);
     }
     rhythm() {
       const main=this.id('switch','rhythm_enabled');if(!this.has(main))return '';
       const on=this.value(main)==='on';
-      let body=this.switchRow('rhythm_enabled','Rhythm');
+      let body=this.switchRow('rhythm_enabled',this.t('Rhythm'));
       if(on) {
-        body+=this.row(this.id('select','rhythm_mode'),'Mode');
-        body+=this.section('days','calendar-week','Napok',DAYS.map(([d,l])=>this.switchRow(`rhythm_${d}`,l)).join(''));
+        body+=this.row(this.id('select','rhythm_mode'),this.t('Mode'));
+        body+=this.section('days','calendar-week',this.t('Days'),DAYS.map(([d,l])=>this.switchRow(`rhythm_${d}`,this.t(l))).join(''));
         for(let i=1;i<=8;i++) {
           const p=`rhythm_${i}`, toggle=this.id('switch',`${p}_enabled`);
           if(!this.has(toggle))continue;
-          const title=`${i}. ${this.value(this.id('text',`${p}_name`),`Rhythm ${i}`)} — ${this.value(this.id('text',`${p}_time`))}`;
+          const title=`${i}. ${this.value(this.id('text',`${p}_name`),`${this.t('Rhythm')} ${i}`)} — ${this.value(this.id('text',`${p}_time`))}`;
           const slotOn=this.value(toggle)==='on';
-          let content=this.row(toggle,'Enabled');
+          let content=this.row(toggle,this.t('Enabled'));
           if(slotOn) {
-            content+=this.row(this.id('text',`${p}_name`),'Name')+this.row(this.id('text',`${p}_time`),'Time');
-            content+=this.percentNumber(this.id('number',`${p}_brightness`),'Brightness');
-            content+=this.percentNumber(this.id('number',`${p}_color_temp`),'Color temperature');
+            content+=this.row(this.id('text',`${p}_name`),this.t('Name'))+this.row(this.id('text',`${p}_time`),this.t('Time'));
+            content+=this.percentNumber(this.id('number',`${p}_brightness`),this.t('Brightness'));
+            content+=this.percentNumber(this.id('number',`${p}_color_temp`),this.t('Color temperature'));
           } else {
-            content+='<div class="disabled-note">Ez a Rhythm pont inaktív</div>';
+            content+=`<div class="disabled-note">${this.t('This Rhythm point is inactive')}</div>`;
           }
           body+=this.section(p,'clock-outline',title,content,!slotOn);
         }
         body+=this.buttons('rhythm');
       }
-      return this.section('rhythm','clock-outline',`Rhythm — ${on?'ON':'OFF'}`,body);
+      return this.section('rhythm','clock-outline',`${this.t('Rhythm')} — ${on?'ON':'OFF'}`,body);
     }
     percentNumber(id,label) {
       if(!this.has(id))return '';
       const s=this.state(id),v=Number(s.state)||0,min=Number(s.attributes.min??0),max=Number(s.attributes.max??100);
-      return `<div class="slider-row"><div><label>${label}</label><output data-output="${id}">${v}%</output></div><input type="range" min="${min}" max="${max}" step="${s.attributes.step??1}" value="${v}" data-entity="${id}" data-output-target="${id}"></div>`;
+      return `<div class="slider-row"><div><label>${this.t(label)}</label><output data-output="${id}">${v}%</output></div><input type="range" min="${min}" max="${max}" step="${s.attributes.step??1}" value="${v}" data-entity="${id}" data-output-target="${id}"></div>`;
     }
     _render() {
       if(!this.config||!this._hass)return;
@@ -209,7 +229,7 @@
         .light-editor{display:grid;gap:15px}.slider-row>div,.color-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.slider-row output,.xy-label{font-size:13px;color:var(--secondary-text-color)}.slider-row input{margin-top:10px}.slider-row small{display:block;color:var(--secondary-text-color);font-size:11px}.temperature{accent-color:#ffbd54;background:linear-gradient(90deg,#ffad52,#fff2c2,#c7e8ff);border-radius:9px}
         .compact-main{display:grid;grid-template-columns:42px minmax(0,1fr) 38px;gap:12px;align-items:center}.compact-main.no-power{grid-template-columns:minmax(0,1fr) 38px}.power-icon{display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:var(--secondary-background-color,#eee);color:var(--secondary-text-color)}.power-icon ha-icon{width:23px;height:23px;margin:0}.power-icon.on{color:var(--active-color,var(--primary-color));background:color-mix(in srgb,var(--active-color,var(--primary-color)) 16%,transparent)}.brightness-control{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}.brightness-control output{font-size:13px;min-width:36px;text-align:right}.brightness-wide,.temperature-wide{appearance:none;-webkit-appearance:none;width:100%;height:8px;border-radius:10px;outline:none;cursor:pointer}.brightness-wide{background:linear-gradient(90deg,var(--active-color) 0%,var(--active-color) var(--fill),var(--divider-color,#bbb) var(--fill),var(--divider-color,#bbb) 100%)}.brightness-wide::-webkit-slider-thumb,.temperature-wide::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:20px;height:20px;border-radius:50%;border:2px solid var(--card-background-color,#fff);background:var(--active-color);box-shadow:0 1px 4px #0005}.brightness-wide::-moz-range-thumb,.temperature-wide::-moz-range-thumb{width:16px;height:16px;border-radius:50%;border:2px solid var(--card-background-color,#fff);background:var(--active-color);box-shadow:0 1px 4px #0005}.quick-controls{border:0!important;border-radius:8px;overflow:visible!important;position:relative}.quick-controls>summary{padding:7px!important;justify-content:center!important;border:1px solid var(--divider-color,#ddd);border-radius:8px}.quick-controls>summary ha-icon{color:var(--primary-color)}.quick-controls>.adjustment-panel{grid-column:1/-1;padding:15px 2px 2px;display:grid;gap:16px}.quick-controls[open]{grid-column:1/-1}.compact-main:has(.quick-controls[open]){row-gap:4px}.quick-controls[open]>summary{width:38px;margin-left:auto}.temperature-wide{background:linear-gradient(90deg,var(--active-color) 0%,var(--active-color) var(--fill),transparent var(--fill)),linear-gradient(90deg,#ff9d4d 0%,#fff0d1 50%,#b6dcff 100%)}.presets>label{display:block;font-size:13px;margin-bottom:8px}.presets>div{display:flex;flex-wrap:wrap;gap:7px}.preset{display:flex;align-items:center;gap:6px;padding:6px 9px;font-size:12px;border-radius:18px}.preset span{width:13px;height:13px;border-radius:50%;background:var(--preset-color);border:1px solid #7775}.preset:active{transform:scale(.97)}
         .color-block{display:grid;gap:9px}.swatch{width:25px;height:25px;border:1px solid var(--divider-color);border-radius:50%}.palette{display:block;width:100%;height:160px;border-radius:10px;touch-action:none;cursor:crosshair}.hue{background:linear-gradient(90deg,red,#ff0,lime,cyan,blue,magenta,red);border-radius:9px}.advanced{font-size:13px}.advanced summary{cursor:pointer;min-height:44px;display:flex;align-items:center}.xy-inputs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 0}.xy-stepper{display:flex;gap:5px;align-items:center}.xy-stepper>span{min-width:14px;font-weight:600}.xy-stepper output{min-width:58px;text-align:center;font-variant-numeric:tabular-nums}.xy-stepper button{border:1px solid var(--divider-color,#bbb);border-radius:8px;background:var(--secondary-background-color,#f7f7f7);cursor:pointer}.apply-xy{min-height:44px}.time-control{display:flex;align-items:center;gap:8px}.time-control ha-icon{width:19px;height:19px;color:var(--primary-color)}.time-control input[type=time]{min-height:44px;min-width:128px;font-size:16px}.buttons{display:flex;gap:8px;margin-top:14px}.buttons button{flex:1}.power,button{border:1px solid var(--divider-color,#bbb);border-radius:8px;background:var(--secondary-background-color,#f7f7f7);padding:8px;cursor:pointer}.power.on{color:var(--primary-color)}button ha-icon{width:17px;height:17px;vertical-align:middle;margin-right:4px}.error{color:var(--error-color,#b00);margin:9px 0}
-      </style><ha-card><h2>${circleIcon('lightbulb')}<span>${esc(title)}</span></h2>${st?this.lightEditor(entity,'main',{compact:true}):'<div>Az entitás nem található.</div>'}${full?this.startup()+this.scene()+this.rhythm():''}${this._error?`<div class="error">${esc(this._error)}</div>`:''}</ha-card>`;
+      </style><ha-card><h2>${circleIcon('lightbulb')}<span>${esc(title)}</span></h2>${st?this.lightEditor(entity,'main',{compact:true}):`<div>${this.t('Entity not found.')}</div>`}${full?this.startup()+this.scene()+this.rhythm():''}${this._error?`<div class="error">${esc(this._error)}</div>`:''}</ha-card>`;
       this._wire();
     }
     _wire() {
@@ -243,7 +263,7 @@
       root.querySelectorAll('[data-preset-xy]').forEach(btn=>btn.addEventListener('click',()=>this.call('light','turn_on',{entity_id:btn.dataset.presetEntity,xy_color:btn.dataset.presetXy.split(',').map(Number)})));
       root.querySelectorAll('[data-apply-xy]').forEach(btn=>btn.addEventListener('click',()=>{
         const inputs=btn.closest('.xy-inputs'),x=Number(inputs.querySelector('[data-xy=x]').textContent),y=Number(inputs.querySelector('[data-xy=y]').textContent);
-        if(!(x>=0&&y>0&&x+y<=1)) {this._error='Érvénytelen XY koordináta (x ≥ 0, y > 0, x + y ≤ 1).';this._render();return;}
+        if(!(x>=0&&y>0&&x+y<=1)) {this._error=this.t('Invalid XY coordinates (x ≥ 0, y > 0, x + y ≤ 1).');this._render();return;}
         this.call('light','turn_on',{entity_id:btn.dataset.applyXy,xy_color:[x,y]});
       }));
       root.querySelectorAll('[data-xy-change]').forEach(btn=>btn.addEventListener('click',()=>{
