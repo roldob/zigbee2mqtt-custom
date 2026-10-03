@@ -13,6 +13,7 @@
     Rhythm: 'Ritmus', Days: 'Napok', Monday: 'Hétfő', Tuesday: 'Kedd', Wednesday: 'Szerda', Thursday: 'Csütörtök', Friday: 'Péntek', Saturday: 'Szombat', Sunday: 'Vasárnap',
     Name: 'Név', Time: 'Időpont', 'Save': 'Mentés', Discard: 'Elvetés', Reset: 'Visszaállítás',
     'Decrease': 'Csökkentés', 'Increase': 'Növelés', 'time': 'időpont',
+    customized: 'Egyéni', previous: 'Előző', initial: 'Kezdeti', white: 'Fehér', color: 'Színes',
     'This Rhythm point is inactive': 'Ez a Rhythm pont inaktív',
     'Entity not found.': 'Az entitás nem található.',
     'Invalid XY coordinates (x ≥ 0, y > 0, x + y ≤ 1).': 'Érvénytelen XY koordináta (x ≥ 0, y > 0, x + y ≤ 1).',
@@ -77,6 +78,7 @@
     state(id) { return this._hass?.states[id]; }
     has(id) { return !!this.state(id); }
     value(id, fallback='') { const s=this.state(id)?.state; return s && !['unknown','unavailable'].includes(s)?s:fallback; }
+    startupValue(id, value) { return /_(startup_behavior|startup_color_mode)$/.test(id) ? this.t(value) : value; }
     light(id) { return this.state(id)?.attributes ?? {}; }
     async call(domain,service,data) {
       try { await this._hass.callService(domain,service,data); }
@@ -98,7 +100,7 @@
     control(id,label='value') {
       const s=this.state(id),domain=id.split('.')[0],v=this._pendingNumberValues.has(id)?this._pendingNumberValues.get(id):this.value(id);
       if(domain==='switch') return `<input id="${id}" data-entity="${id}" type="checkbox" ${v==='on'?'checked':''} ${v==='unavailable'?'disabled':''}>`;
-      if(domain==='select') return `<select id="${id}" data-entity="${id}">${(s.attributes.options??[]).map(o=>`<option value="${esc(o)}" ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+      if(domain==='select') return `<select id="${id}" data-entity="${id}">${(s.attributes.options??[]).map(o=>`<option value="${esc(o)}" ${o===v?'selected':''}>${esc(this.startupValue(id,o))}</option>`).join('')}</select>`;
       if(domain==='number') {
         const min=Number(s.attributes.min??0),max=Number(s.attributes.max??100),step=Number(s.attributes.step??1);
         return `<div class="number-stepper"><button type="button" class="step-button" data-step="${id}" data-delta="-${step}" aria-label="${esc(label)} — ${this.t('Decrease')}">−</button><output>${esc(v)}</output><button type="button" class="step-button" data-step="${id}" data-delta="${step}" aria-label="${esc(label)} — ${this.t('Increase')}">+</button><span class="step-range">${min}–${max}</span></div>`;
@@ -108,6 +110,7 @@
         return `<div class="time-control">${circleIcon('clock-outline')}<input id="${id}" data-entity="${id}" type="time" value="${esc(time)}" aria-label="${esc(label)} ${this.t('time')}"></div>`;
       }
       if(domain==='text') return `<input id="${id}" data-entity="${id}" type="text" value="${esc(v)}">`;
+      if(domain==='sensor'&&/_startup_color_mode$/.test(id)) return `<span>${esc(this.startupValue(id,v))}</span>`;
       return `<span>${esc(v)}</span>`;
     }
     buttons(prefix) {
@@ -168,7 +171,7 @@
       const behavior=this.id('select','startup_behavior'), startup=this.id('light','startup'), dnd=this.id('switch','do_not_disturb');
       if(!this.has(behavior)&&!this.has(startup)&&!this.has(dnd)) return '';
       const b=this.value(behavior);
-      return this.section('startup','power-settings',`${this.t('Startup')}${b?' — '+b:''}`,`${this.row(behavior,this.t('Behavior'))}${this.row(this.id('sensor','startup_color_mode'),this.t('Color mode'))}${b==='customized'?this.lightEditor(startup,'startup',{noPower:true,compact:true}):''}${this.switchRow('do_not_disturb',this.t('Do Not Disturb'))}`);
+      return this.section('startup','power-settings',`${this.t('Startup')}${b?' — '+this.startupValue(behavior,b):''}`,`${this.row(behavior,this.t('Behavior'))}${this.row(this.id('sensor','startup_color_mode'),this.t('Color mode'))}${b==='customized'?this.lightEditor(startup,'startup',{noPower:true,compact:true}):''}${this.switchRow('do_not_disturb',this.t('Do Not Disturb'))}`);
     }
     scene() {
       const selected=this.id('select','scene_selected');

@@ -39,7 +39,7 @@ The same compact color editor is used for the main light and custom Startup/Scen
 
 ## Language
 
-All card-owned controls, labels, presets, and accessibility text follow the Home Assistant frontend language. Hungarian is used when the frontend language is Hungarian (`hu` or a regional variant); English is the default for every other language or when no language is available. Entity names, state values, and options are supplied by Home Assistant and remain unchanged.
+All card-owned controls, labels, presets, and accessibility text follow the Home Assistant frontend language. Hungarian is used when the frontend language is Hungarian (`hu` or a regional variant); English is the default for every other language or when no language is available. Startup behavior and color-mode option labels are translated for display; the original values are retained when sending changes to Home Assistant.
 
 These sections depend on the converter or group extension exposing the matching Home Assistant entities. The card does not create missing entities.
 
@@ -54,10 +54,10 @@ Copy `homeassistant/www/ts0505b-card.js` from this repository to Home Assistant'
 Add a dashboard resource with type **JavaScript Module**:
 
 ```text
-/local/ts0505b-card.js?v=7
+/local/ts0505b-card.js?v=8
 ```
 
-Then add either card using the YAML above. After replacing the JavaScript in `www` during a future update, increase the query version (for example, `v=8`) and reload the dashboard so the browser downloads the new file.
+Then add either card using the YAML above. After replacing the JavaScript in `www` during a future update, increase the query version (for example, `v=9`) and reload the dashboard so the browser downloads the new file. The query version is optional and only helps bypass a cached file.
 
 ## Privacy
 
